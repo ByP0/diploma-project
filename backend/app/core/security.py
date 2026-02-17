@@ -1,0 +1,1 @@
+pattern_password = r'[A-Za-z\d@$!%*#?&]{8,}'
