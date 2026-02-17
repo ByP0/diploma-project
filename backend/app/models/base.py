@@ -1,7 +1,7 @@
 from sqlalchemy import func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, BOOLEAN
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from datetime import datetime
 import uuid
 

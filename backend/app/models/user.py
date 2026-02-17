@@ -1,6 +1,5 @@
-from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import TEXT, TIMESTAMP
+from sqlalchemy.dialects.postgresql import TEXT
 import enum
 
 from app.models.base import BaseWithUUId

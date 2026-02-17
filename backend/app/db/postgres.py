@@ -26,7 +26,6 @@ class DataBase:
 
 
 db_postgres = DataBase(
-    
     url=setting.postgres_url,
     echo=setting.postgres_echo
 )

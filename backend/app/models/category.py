@@ -1,7 +1,5 @@
-from sqlalchemy import func
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import SMALLINT, TIMESTAMP, VARCHAR
-from datetime import datetime
+from sqlalchemy.dialects.postgresql import SMALLINT, VARCHAR
 
 from app.models.base import Base
 
