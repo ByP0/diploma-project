@@ -1,53 +1,57 @@
-from fastapi import HTTPException
 from datetime import datetime, timedelta, timezone
 from typing import Literal
-import bcrypt
+from fastapi import HTTPException
+import hashlib
 import jwt
 import uuid
+import bcrypt
 import re
 
 from app.core.config import setting
+from app.core.constans import PASSWORD_PATTERN
 from app.models.user import User
 
 
 class JWTService:
+
     def __init__(
         self,
         secret_key: str,
-        algorith: str,
+        algorithm: str,
         access_expire_minutes: int,
-        refresh_expire_days: int
+        refresh_expire_days: int,
     ):
-        self.secret_key = secret_key,
-        self.algorith = algorith,
-        self.access_expire = timedelta(minutes=access_expire_minutes),
+        self.secret_key = secret_key
+        self.algorithm = algorithm
+        self.access_expire = timedelta(minutes=access_expire_minutes)
         self.refresh_expire = timedelta(days=refresh_expire_days)
 
     def _create_token(
-        self, 
+        self,
         user_id: uuid.UUID,
         token_type: Literal["access", "refresh"],
         expires_delta: timedelta,
         role: str | None = None,
     ) -> str:
+
         now = datetime.now(timezone.utc)
 
         payload = {
             "sub": str(user_id),
             "type": token_type,
             "iat": now,
-            "exp": now + expires_delta
+            "exp": now + expires_delta,
         }
 
         if role and token_type == "access":
             payload["role"] = role
 
         return jwt.encode(
-            payload=payload,
-            key=self.secret_key,
-            algorithm=self.algorith
+            payload,
+            self.secret_key,
+            algorithm=self.algorithm,
         )
-    
+
     def create_access_token(self, user: User) -> str:
         return self._create_token(
             user_id=user.id,
@@ -64,32 +68,59 @@ class JWTService:
         )
 
     def decode_token(self, token: str) -> dict:
-        return jwt.decode(
-            token,
-            self.secret_key,
-            algorithms=[self.algorithm],
-        )
-    
-jwt_service = JWTService(
-    secret_key=setting.secret_key,
-    algorith=setting.algorithm,
-    access_expire_minutes=setting.access_token_expire_minutes,
-    refresh_expire_days=setting.refresh_token_expire_days
-)
+        try:
+            return jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm],
+            )
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
 
 
 class PasswordService:
-    pattern = r'[A-Za-z\d@$!%*#?&]{8,}'
 
-    def validatepw(password, pattern=pattern):       
-        if re.match(pattern, password) is None:
-                raise HTTPException(status_code=500, detail="Bad password")
+    @staticmethod
+    def validate(password: str) -> None:
+        if re.match(PASSWORD_PATTERN, password) is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Password does not meet security requirements",
+            )
 
-    def hashpw(password: str) -> bytes:
+    @staticmethod
+    def hash(password: str) -> str:
         salt = bcrypt.gensalt()
-        return bcrypt.hashpw(password.encode(), salt)
+        hashed = bcrypt.hashpw(password.encode(), salt)
+        return hashed.decode()
 
-    def verifypw(password: str, hashed_password: bytes) -> bool:
-        return bcrypt.checkpw(password.encode(), hashed_password)
+    @staticmethod
+    def verify(password: str, hashed_password: str) -> bool:
+        return bcrypt.checkpw(
+            password.encode(),
+            hashed_password.encode(),
+        )
     
-pw_service = PasswordService()
+class TokenHashService:
+
+    @staticmethod
+    def hash(token: str) -> str:
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    @staticmethod
+    def verify(token: str, hashed: str) -> bool:
+        return hashlib.sha256(token.encode()).hexdigest() == hashed
+    
+
+token_hash_service = TokenHashService()
+
+jwt_service = JWTService(
+    secret_key=setting.secret_key,
+    algorithm=setting.algorithm,
+    access_expire_minutes=setting.access_token_expire_minutes,
+    refresh_expire_days=setting.refresh_token_expire_days,
+)
+
+password_service = PasswordService()

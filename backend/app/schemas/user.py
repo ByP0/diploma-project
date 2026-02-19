@@ -4,7 +4,7 @@ from datetime import datetime
 import uuid
 
 from app.models.user import UserRoleEnum
-from app.core.security import pw_service
+from app.core.constans import PASSWORD_PATTERN
 
 
 class UserBase(BaseModel):
@@ -24,7 +24,6 @@ class UserCreate(UserBase):
         Field(
             title="Password",
             description="User password (must match security policy)",
-            pattern=pw_service.pattern,
             examples=["Password1!"],
             min_length=8,
         ),
@@ -131,7 +130,6 @@ class UserUpdate(BaseModel):
         str | None,
         Field(
             title="New password",
-            pattern=pw_service.pattern,
             examples=["NewPassword1!"],
         ),
     ] = None
