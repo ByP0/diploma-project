@@ -1,10 +1,9 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Annotated
 from datetime import datetime
-import uuid
+from uuid import UUID
 
 from app.models.user import UserRoleEnum
-from app.core.constans import PASSWORD_PATTERN
 
 
 class UserBase(BaseModel):
@@ -68,7 +67,7 @@ class UserLogin(BaseModel):
 
 class UserRead(UserBase):
     id: Annotated[
-        uuid.UUID,
+        UUID,
         Field(
             title="User ID",
             description="Unique identifier of the user",

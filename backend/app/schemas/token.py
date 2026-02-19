@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Annotated, Literal
 from datetime import datetime
-import uuid
+from uuid import UUID
 
 
 class TokenPayload(BaseModel):
     sub: Annotated[
-       uuid.UUID,
+        UUID,
         Field(
             title="Subject",
             description="Unique identifier of the user (User ID)",

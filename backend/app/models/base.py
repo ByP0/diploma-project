@@ -3,7 +3,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from datetime import datetime
-import uuid
+from uuid import UUID, uuid4
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -51,9 +51,8 @@ class Base(AsyncAttrs, DeclarativeBase):
 
             column.nullable = False
 
-    
 
 class BaseWithUUId(Base):
     __abstract__ = True
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)

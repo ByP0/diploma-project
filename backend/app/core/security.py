@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import HTTPException
 import hashlib
 import jwt
-import uuid
+from uuid import UUID
 import bcrypt
 import re
 
@@ -28,7 +28,7 @@ class JWTService:
 
     def _create_token(
         self,
-        user_id: uuid.UUID,
+        user_id: UUID,
         token_type: Literal["access", "refresh"],
         expires_delta: timedelta,
         role: str | None = None,

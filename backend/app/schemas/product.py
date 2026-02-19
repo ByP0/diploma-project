@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import Annotated
 from decimal import Decimal
 from datetime import datetime
-import uuid
+from uuid import UUID
 
 
 class ProductBase(BaseModel):
@@ -70,7 +70,7 @@ class ProductCreate(ProductBase):
 
 class ProductRead(ProductBase):
     id: Annotated[
-        uuid.UUID,
+        UUID,
         Field(
             title="Product ID",
             examples=["550e8400-e29b-41d4-a716-446655440000"],
