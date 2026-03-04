@@ -6,7 +6,6 @@ from app.models.category import Category
 
 
 class CategoryService:
-
     def __init__(self, session: AsyncSession):
         self.session = session
 
