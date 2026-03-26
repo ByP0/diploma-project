@@ -1,13 +1,13 @@
+# app/models/base.py
+
 from sqlalchemy import func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, TIMESTAMP
 from datetime import datetime
-from uuid import UUID, uuid4
-
+import uuid
 
 class Base(AsyncAttrs, DeclarativeBase):
-
     __abstract__ = True
     __timestamps__ = True
     __is_updatable__ = True
@@ -16,7 +16,7 @@ class Base(AsyncAttrs, DeclarativeBase):
     @declared_attr.directive
     def __tablename__(cls) -> str:
         return f"{cls.__name__.lower()}s"
-    
+
     @declared_attr
     def created_at(cls) -> Mapped[datetime]:
         if not cls.__timestamps__:
@@ -25,34 +25,30 @@ class Base(AsyncAttrs, DeclarativeBase):
 
     @declared_attr
     def updated_at(cls) -> Mapped[datetime]:
-        if not cls.__timestamps__:
+        if not cls.__timestamps__ or not cls.__is_updatable__:
             return None
-        if not cls.__is_updatable__:
-            return None
-        return mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), server_onupdate=func.now())
+        return mapped_column(
+            TIMESTAMP(timezone=True),
+            server_default=func.now(),
+            server_onupdate=func.now()
+        )
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-
         if getattr(cls, "__abstract__", False):
             return
-
         table = getattr(cls, "__table__", None)
         if not table:
             return
-
         for column in table.columns:
-
             if column.primary_key:
                 continue
-
             if column.name in cls.__allow_nullable__:
                 continue
-
             column.nullable = False
 
-
-class BaseWithUUId(Base):
+class BaseWithUUID(Base):
     __abstract__ = True
-
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
