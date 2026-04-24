@@ -75,9 +75,9 @@ class JWTService:
                 algorithms=[self.algorithm],
             )
         except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Token expired")
+            raise HTTPException(status_code=401, detail="Срок действия токена истек.")
         except jwt.InvalidTokenError:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise HTTPException(status_code=401, detail="Передан некорректный токен.")
 
 
 class PasswordService:
@@ -87,7 +87,10 @@ class PasswordService:
         if re.match(PASSWORD_PATTERN, password) is None:
             raise HTTPException(
                 status_code=400,
-                detail="Password does not meet security requirements",
+                detail=(
+                    "Пароль должен содержать минимум 8 символов, "
+                    "заглавную букву, строчную букву, цифру и спецсимвол."
+                ),
             )
 
     @staticmethod

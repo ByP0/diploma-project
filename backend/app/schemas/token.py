@@ -8,8 +8,8 @@ class TokenPayload(BaseModel):
     sub: Annotated[
         UUID,
         Field(
-            title="Subject",
-            description="Unique identifier of the user (User ID)",
+            title="Пользователь",
+            description="Идентификатор пользователя, которому принадлежит токен",
             examples=["550e8400-e29b-41d4-a716-446655440000"],
         ),
     ]
@@ -17,8 +17,8 @@ class TokenPayload(BaseModel):
     type: Annotated[
         Literal["access", "refresh"],
         Field(
-            title="Token type",
-            description="Type of JWT token",
+            title="Тип токена",
+            description="Тип токена",
             examples=["access"],
         ),
     ]
@@ -26,8 +26,8 @@ class TokenPayload(BaseModel):
     role: Annotated[
         str | None,
         Field(
-            title="User role",
-            description="Role of the user (included only in access token)",
+            title="Роль",
+            description="Роль пользователя, присутствует только в токене доступа",
             examples=["user"],
         ),
     ] = None
@@ -35,18 +35,18 @@ class TokenPayload(BaseModel):
     exp: Annotated[
         datetime,
         Field(
-            title="Expiration time",
-            description="Token expiration timestamp",
-            examples=["2024-01-01T12:30:00Z"],
+            title="Срок действия",
+            description="Дата и время окончания действия токена",
+            examples=["2026-04-23T12:30:00Z"],
         ),
     ]
 
     iat: Annotated[
         datetime,
         Field(
-            title="Issued at",
-            description="Token issued timestamp",
-            examples=["2024-01-01T12:00:00Z"],
+            title="Дата выдачи",
+            description="Дата и время создания токена",
+            examples=["2026-04-23T12:00:00Z"],
         ),
     ]
 
@@ -56,8 +56,8 @@ class TokenPayload(BaseModel):
                 "sub": "550e8400-e29b-41d4-a716-446655440000",
                 "type": "access",
                 "role": "user",
-                "exp": "2024-01-01T12:30:00Z",
-                "iat": "2024-01-01T12:00:00Z",
+                "exp": "2026-04-23T12:30:00Z",
+                "iat": "2026-04-23T12:00:00Z",
             }
         }
     )
@@ -67,8 +67,8 @@ class TokenPair(BaseModel):
     access_token: Annotated[
         str,
         Field(
-            title="Access token",
-            description="JWT access token",
+            title="Токен доступа",
+            description="Токен доступа",
             examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."],
         ),
     ]
@@ -76,8 +76,8 @@ class TokenPair(BaseModel):
     refresh_token: Annotated[
         str,
         Field(
-            title="Refresh token",
-            description="JWT refresh token",
+            title="Токен обновления",
+            description="Токен обновления",
             examples=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."],
         ),
     ]
@@ -85,8 +85,8 @@ class TokenPair(BaseModel):
     token_type: Annotated[
         str,
         Field(
-            title="Token type",
-            description="Authorization scheme",
+            title="Схема авторизации",
+            description="Тип токена для заголовка авторизации",
             examples=["bearer"],
         ),
     ] = "bearer"

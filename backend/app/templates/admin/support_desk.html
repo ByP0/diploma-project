@@ -1,0 +1,341 @@
+{% extends "sqladmin/layout.html" %}
+{% block content %}
+<style>
+  .desk-grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1.25rem;
+  }
+  .desk-card {
+    background: linear-gradient(180deg, #ffffff, #f5f7fb);
+    border: 1px solid #dbe3ef;
+    border-radius: 18px;
+    box-shadow: 0 16px 40px rgba(28, 42, 61, 0.08);
+  }
+  .desk-list {
+    max-height: 72vh;
+    overflow: auto;
+  }
+  .desk-ticket {
+    display: block;
+    padding: 1rem;
+    border-bottom: 1px solid #edf1f7;
+    text-decoration: none;
+    color: inherit;
+  }
+  .desk-ticket.active {
+    background: #eef7ff;
+  }
+  .desk-ticket:last-child {
+    border-bottom: none;
+  }
+  .desk-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .desk-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    background: #e7f0ff;
+    color: #1d4ed8;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .desk-badge.warn {
+    background: #fff4dc;
+    color: #9a6700;
+  }
+  .desk-badge.success {
+    background: #e6f9ee;
+    color: #137333;
+  }
+  .desk-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .desk-summary .desk-card {
+    padding: 1rem 1.1rem;
+  }
+  .desk-summary strong {
+    display: block;
+    font-size: 1.7rem;
+    color: #132238;
+  }
+  .desk-conversation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 48vh;
+    overflow: auto;
+  }
+  .desk-message {
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid #e6ebf4;
+    background: #ffffff;
+  }
+  .desk-message.customer {
+    border-left: 4px solid #2563eb;
+  }
+  .desk-message.ai {
+    border-left: 4px solid #7c3aed;
+    background: #faf8ff;
+  }
+  .desk-message.admin {
+    border-left: 4px solid #0f766e;
+    background: #f3fbfa;
+  }
+  .desk-actions {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+  .desk-section {
+    padding: 1rem 1.15rem;
+  }
+  .desk-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+  .desk-meta div {
+    background: #f7f9fc;
+    border-radius: 14px;
+    padding: 0.85rem 0.95rem;
+  }
+  .desk-ops {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.25rem;
+  }
+  @media (max-width: 1100px) {
+    .desk-grid,
+    .desk-actions,
+    .desk-ops {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="container-xl">
+  <div class="page-header d-print-none mb-3">
+    <div class="row align-items-center">
+      <div class="col">
+        <h2 class="page-title">Support Desk</h2>
+        <div class="text-secondary">Операционное окно для работы с обращениями, заказами и остатками.</div>
+      </div>
+    </div>
+  </div>
+
+  {% if notice %}
+    <div class="alert alert-success">{{ notice }}</div>
+  {% endif %}
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <div class="desk-summary">
+    <div class="desk-card">
+      <div class="text-secondary">Новые обращения</div>
+      <strong>{{ counts.total_open }}</strong>
+    </div>
+    <div class="desk-card">
+      <div class="text-secondary">В работе</div>
+      <strong>{{ counts.in_progress }}</strong>
+    </div>
+    <div class="desk-card">
+      <div class="text-secondary">Ждут клиента</div>
+      <strong>{{ counts.waiting_customer }}</strong>
+    </div>
+    <div class="desk-card">
+      <div class="text-secondary">Эскалация к человеку</div>
+      <strong>{{ counts.handoff_requested }}</strong>
+    </div>
+  </div>
+
+  <div class="desk-grid">
+    <div class="desk-card desk-list">
+      {% if tickets %}
+        {% for ticket in tickets %}
+          <a class="desk-ticket {% if selected_ticket and ticket.id == selected_ticket.id %}active{% endif %}" href="{{ admin_base_url }}/support-desk?ticket_id={{ ticket.id }}">
+            <div class="d-flex justify-content-between gap-2 mb-2">
+              <strong>{{ ticket.subject }}</strong>
+              <small>{{ ticket.updated_at.strftime('%d.%m %H:%M') }}</small>
+            </div>
+            <div class="desk-badges mb-2">
+              <span class="desk-badge">{{ ticket.status.value }}</span>
+              <span class="desk-badge warn">{{ ticket.priority.value }}</span>
+              {% if ticket.human_handoff_requested %}
+                <span class="desk-badge success">human</span>
+              {% endif %}
+            </div>
+            <div class="text-secondary">{{ ticket.last_message_preview }}</div>
+            <small>{{ ticket.contact_email or 'Авторизованный пользователь' }}</small>
+          </a>
+        {% endfor %}
+      {% else %}
+        <div class="desk-section text-secondary">Активных обращений пока нет.</div>
+      {% endif %}
+    </div>
+
+    <div class="desk-card">
+      {% if selected_ticket %}
+        <div class="desk-section">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <h3 class="mb-1">{{ selected_ticket.subject }}</h3>
+              <div class="desk-badges">
+                <span class="desk-badge">{{ selected_ticket.status.value }}</span>
+                <span class="desk-badge warn">{{ selected_ticket.priority.value }}</span>
+                {% if selected_ticket.human_handoff_requested %}
+                  <span class="desk-badge success">требуется оператор</span>
+                {% endif %}
+              </div>
+            </div>
+            <small class="text-secondary">ID: {{ selected_ticket.id }}</small>
+          </div>
+
+          <div class="desk-meta">
+            <div>
+              <div class="text-secondary">Контакт</div>
+              <strong>{{ selected_ticket.contact_email or 'Пользователь в аккаунте' }}</strong>
+            </div>
+            <div>
+              <div class="text-secondary">Последний ответ администратора</div>
+              <strong>{{ selected_ticket.last_admin_reply_at.strftime('%d.%m.%Y %H:%M') if selected_ticket.last_admin_reply_at else 'Еще не отвечали' }}</strong>
+            </div>
+            <div>
+              <div class="text-secondary">Последнее сообщение клиента</div>
+              <strong>{{ selected_ticket.last_customer_message_at.strftime('%d.%m.%Y %H:%M') if selected_ticket.last_customer_message_at else 'Нет данных' }}</strong>
+            </div>
+          </div>
+
+          <div class="desk-conversation">
+            {% for message in selected_ticket.messages %}
+              <div class="desk-message {{ message.author_type.value }}">
+                <div class="d-flex justify-content-between gap-3 mb-2">
+                  <strong>{{ message.author_name or message.author_type.value }}</strong>
+                  <small>{{ message.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                </div>
+                <div style="white-space: pre-wrap;">{{ message.body }}</div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="desk-actions">
+            <form method="post" action="{{ admin_base_url }}/support-desk/reply/{{ selected_ticket.id }}" class="desk-card desk-section">
+              <h4 class="mb-3">Ответить клиенту</h4>
+              <div class="mb-3">
+                <label class="form-label">Текст ответа</label>
+                <textarea class="form-control" name="message" rows="6" placeholder="Напишите ответ от лица администратора..." required></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Статус после ответа</label>
+                <select class="form-select" name="status">
+                  {% for status in reply_statuses %}
+                    <option value="{{ status.value }}" {% if status.value == 'waiting_customer' %}selected{% endif %}>{{ status.value }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button class="btn btn-primary" type="submit">Отправить ответ</button>
+            </form>
+
+            <form method="post" action="{{ admin_base_url }}/support-desk/status/{{ selected_ticket.id }}" class="desk-card desk-section">
+              <h4 class="mb-3">Обновить карточку</h4>
+              <div class="mb-3">
+                <label class="form-label">Статус</label>
+                <select class="form-select" name="ticket_status">
+                  {% for status in status_options %}
+                    <option value="{{ status.value }}" {% if status == selected_ticket.status %}selected{% endif %}>{{ status.value }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Приоритет</label>
+                <select class="form-select" name="ticket_priority">
+                  {% for priority in priority_options %}
+                    <option value="{{ priority.value }}" {% if priority == selected_ticket.priority %}selected{% endif %}>{{ priority.value }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button class="btn btn-outline-primary" type="submit">Сохранить изменения</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <div class="desk-section text-secondary">
+          Выберите обращение слева, чтобы посмотреть историю и ответить пользователю.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="desk-ops">
+    <div class="desk-card desk-section">
+      <h4 class="mb-3">Заказы, требующие внимания</h4>
+      {% if pending_orders %}
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Статус</th>
+                <th>Сумма</th>
+                <th>Дата</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in pending_orders %}
+                <tr>
+                  <td>{{ order.id }}</td>
+                  <td>{{ order.status.value }}</td>
+                  <td>{{ order.total_amount }}</td>
+                  <td>{{ order.created_at.strftime('%d.%m %H:%M') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">Сейчас нет заказов со статусами pending/paid.</div>
+      {% endif %}
+    </div>
+
+    <div class="desk-card desk-section">
+      <h4 class="mb-3">Низкий остаток</h4>
+      {% if low_stock_products %}
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Товар</th>
+                <th>Остаток</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in low_stock_products %}
+                <tr>
+                  <td>{{ product.sku }}</td>
+                  <td>{{ product.name }}</td>
+                  <td>{{ product.stock }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">Все активные товары сейчас с комфортным остатком.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

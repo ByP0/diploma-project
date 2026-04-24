@@ -1,15 +1,17 @@
-from pydantic import BaseModel, ConfigDict,Field
-from typing import Annotated 
-from datetime import datetime 
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CategoryBase(BaseModel):
     id: Annotated[
         int,
         Field(
-            title="Categoty ID",
+            title="Идентификатор категории",
             examples=[5],
-            description="Unique category ID"
+            description="Уникальный идентификатор категории",
+            ge=1,
         )
     ]
 
@@ -18,9 +20,10 @@ class CategoryCreate(CategoryBase):
     name: Annotated[
         str,
         Field(
-            title="Category name",
-            examples=["T-shirt"],
-            description="Unique category name",
+            title="Название категории",
+            examples=["Фрукты и овощи"],
+            description="Название категории каталога",
+            min_length=2,
             max_length=100,
         )
     ]
@@ -28,19 +31,32 @@ class CategoryCreate(CategoryBase):
     slug: Annotated[
         str,
         Field(
-            title="Category slug",
-            examples=["t-shirt"],
-            description="Unique category name",
-            max_length=100
+            title="Символьный код категории",
+            examples=["frukty-i-ovoshchi"],
+            description="Уникальный символьный код категории для адресов и фильтрации",
+            min_length=2,
+            max_length=100,
+            pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
         )
     ]
 
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("slug")
+    @classmethod
+    def normalize_slug(cls, value: str) -> str:
+        return value.strip().lower()
+
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
                 "id": 1,
-                "name": "T-shirt",
-                "slug": "t-shirt"
+                "name": "Фрукты и овощи",
+                "slug": "frukty-i-ovoshchi"
             }
         }
     )
@@ -50,9 +66,9 @@ class CategoryRead(CategoryBase):
     name: Annotated[
         str,
         Field(
-            title="Category name",
-            examples=["T-shirt"],
-            description="Unique category name",
+            title="Название категории",
+            examples=["Фрукты и овощи"],
+            description="Название категории каталога",
             max_length=100,
         )
     ]
@@ -60,51 +76,52 @@ class CategoryRead(CategoryBase):
     slug: Annotated[
         str,
         Field(
-            title="Category slug",
-            examples=["t-shirt"],
-            description="Unique category name",
-            max_length=100
+            title="Символьный код категории",
+            examples=["frukty-i-ovoshchi"],
+            description="Уникальный символьный код категории",
+            max_length=100,
         )
     ]
 
     created_at: Annotated[
         datetime,
         Field(
-            title="Created at",
-            description="Timestamp when the category was created",
-            examples=["2024-01-01T12:00:00Z"],
+            title="Дата создания",
+            description="Дата и время создания категории",
+            examples=["2026-04-23T12:00:00Z"],
+        ),
+    ]
+    updated_at: Annotated[
+        datetime,
+        Field(
+            title="Дата обновления",
+            description="Дата и время последнего изменения категории",
+            examples=["2026-04-23T12:30:00Z"],
         ),
     ]
 
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={
-            "examle": {
+            "example": {
                 "id": 1,
-                "name": "T-shirt",
-                "slug": "t-shirt",
-                "created_at": "2024-01-01T12:00:00Z"
+                "name": "Фрукты и овощи",
+                "slug": "frukty-i-ovoshchi",
+                "created_at": "2026-04-23T12:00:00Z",
+                "updated_at": "2026-04-23T12:30:00Z",
             }
         }         
     )
 
 
 class CategoryUpdate(BaseModel):
-    id: Annotated[
-        int | None,
-        Field(
-            title="Categoty ID",
-            examples=[5],
-            description="Unique category ID"
-        )
-    ] = None
-
     name: Annotated[
         str | None,
         Field(
-            title="Category name",
-            examples=["T-shirt"],
-            description="Unique category name",
+            title="Название категории",
+            examples=["Фрукты и ягоды"],
+            description="Новое название категории",
+            min_length=2,
             max_length=100,
         )
     ] = None
@@ -112,19 +129,35 @@ class CategoryUpdate(BaseModel):
     slug: Annotated[
         str | None,
         Field(
-            title="Category slug",
-            examples=["t-shirt"],
-            description="Unique category name",
-            max_length=100
+            title="Символьный код категории",
+            examples=["frukty-i-yagody"],
+            description="Новый символьный код категории",
+            min_length=2,
+            max_length=100,
+            pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
         )
     ] = None
 
+    @field_validator("name")
+    @classmethod
+    def normalize_optional_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return value.strip()
+
+    @field_validator("slug")
+    @classmethod
+    def normalize_optional_slug(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return value.strip().lower()
+
     model_config = ConfigDict(
+        extra="forbid",
         json_schema_extra={
             "example": {
-                "id": 1,
-                "name": "T-shirt",
-                "slug": "t-shirt",
+                "name": "Фрукты и ягоды",
+                "slug": "frukty-i-yagody",
             }
         }
     )

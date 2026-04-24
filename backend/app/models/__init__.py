@@ -1,0 +1,10 @@
+from app.models import admin_audit_log  # noqa: F401
+from app.models import cart_item  # noqa: F401
+from app.models import category  # noqa: F401
+from app.models import order_item  # noqa: F401
+from app.models import payment_transaction  # noqa: F401
+from app.models import product  # noqa: F401
+from app.models import refresh_token  # noqa: F401
+from app.models import support_message  # noqa: F401
+from app.models import support_ticket  # noqa: F401
+from app.models import user  # noqa: F401

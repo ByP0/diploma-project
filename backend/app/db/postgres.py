@@ -7,15 +7,24 @@ class DataBase:
     def __init__(self, url: str, echo: bool):
         self._engine = create_async_engine(
             url=url,
-            echo=echo
+            echo=echo,
+            pool_pre_ping=True,
         )
         self._session_factory = async_sessionmaker(
             bind=self._engine,
             class_=AsyncSession,
             autoflush=False,
             autocommit=False,
-            expire_on_commit=False
+            expire_on_commit=False,
         )
+
+    @property
+    def engine(self):
+        return self._engine
+
+    @property
+    def session_factory(self):
+        return self._session_factory
 
     async def get_session(self):
         async with self._session_factory() as session:
@@ -23,6 +32,9 @@ class DataBase:
                 yield session
             finally:
                 await session.close()
+
+    async def dispose(self) -> None:
+        await self._engine.dispose()
 
 
 db_postgres = DataBase(

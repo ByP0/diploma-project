@@ -9,4 +9,4 @@ class Category(Base):
 
     id: Mapped[int] = mapped_column(SMALLINT, primary_key=True, autoincrement=False)
     name: Mapped[str] = mapped_column(VARCHAR(100))
-    slug: Mapped[str] = mapped_column(VARCHAR(100))
+    slug: Mapped[str] = mapped_column(VARCHAR(100), unique=True)

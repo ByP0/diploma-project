@@ -1,33 +1,83 @@
-# app/api/v1/users.py
-from fastapi import APIRouter, HTTPException, status
-from app.repositories.user_repository import UserRepository
-from app.schemas.user import UserRead, UserUpdate
-from app.api.deps import SessionDep, CurrentUser
-from app.core.security import password_service
+from __future__ import annotations
 
-router = APIRouter(prefix="/users", tags=["Users"])
+from typing import Annotated
 
-@router.get("/me", response_model=UserRead)
-async def read_current_user(current_user: CurrentUser):
-    return current_user
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-@router.put("/me", response_model=UserRead)
-async def update_current_user(data: UserUpdate, session: SessionDep, current_user: CurrentUser):
-    repo = UserRepository(session)
-    if data.email:
-        existing = await repo.get_by_email(data.email)
-        if existing and existing.id != current_user.id:
-            raise HTTPException(status_code=400, detail="Email already in use")
-        current_user.email = data.email
-    if data.password:
-        password_service.validate(data.password)
-        current_user.hashed_password = password_service.hash(data.password)
-    await session.commit()
-    await session.refresh(current_user)
-    return current_user
+from app.api.deps import CurrentUser, SessionDep
+from app.api.docs import build_error_responses
+from app.schemas.user import UserProfileUpdate, UserRead
+from app.services.user_service import UserService
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_current_user(session: SessionDep, current_user: CurrentUser):
-    await session.delete(current_user)
-    await session.commit()
-    return {"detail": "User deleted"}
+
+router = APIRouter(prefix="/users", tags=["Профиль"])
+
+
+@router.get(
+    "/me",
+    response_model=UserRead,
+    summary="Получить профиль текущего пользователя",
+    responses=build_error_responses(401, 500),
+)
+async def get_me(
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    user = await UserService(session).get_profile(current_user.id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    return user
+
+
+@router.patch(
+    "/me",
+    response_model=UserRead,
+    summary="Обновить профиль текущего пользователя",
+    responses=build_error_responses(400, 401, 422, 500),
+)
+async def update_me(
+    data: UserProfileUpdate,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    service = UserService(session)
+    try:
+        return await service.update_profile(
+            current_user,
+            name=data.name,
+            current_password=data.current_password,
+            new_password=data.new_password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/me/avatar",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Загрузить или заменить аватарку",
+    responses=build_error_responses(400, 401, 413, 415, 422, 500),
+)
+async def upload_my_avatar(
+    file: Annotated[UploadFile, File(description="Файл аватарки пользователя")],
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    try:
+        return await UserService(session).upload_avatar(current_user, file)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/me/avatar",
+    response_model=UserRead,
+    summary="Удалить аватарку текущего пользователя",
+    responses=build_error_responses(401, 500),
+)
+async def delete_my_avatar(
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    return await UserService(session).delete_avatar(current_user)
