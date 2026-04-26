@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-outbox-publisher
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shop-outbox-publisher
+  template:
+    metadata:
+      labels:
+        app: shop-outbox-publisher
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.outbox_publisher"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-email-worker
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shop-email-worker
+  template:
+    metadata:
+      labels:
+        app: shop-email-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.email_worker"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-event-consumers
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shop-event-consumers
+  template:
+    metadata:
+      labels:
+        app: shop-event-consumers
+    spec:
+      containers:
+        - name: analytics-worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.analytics_worker"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+        - name: order-worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.order_worker"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+        - name: inventory-worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.inventory_worker"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+        - name: delivery-worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.delivery_worker"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+        - name: payment-webhook-worker
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "-m", "app.workers.payment_webhook_worker"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: shop-cleanup-worker
+  namespace: shop
+spec:
+  schedule: "*/15 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              image: ghcr.io/example/shop-backend:latest
+              command: ["python", "-m", "app.workers.cleanup_worker", "--once"]
+              envFrom:
+                - configMapRef:
+                    name: shop-backend-config
+                - secretRef:
+                    name: shop-backend-secrets

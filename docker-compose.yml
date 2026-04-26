@@ -1,3 +1,31 @@
+x-backend-image: &backend_image
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+
+x-backend-env: &backend_env
+  env_file:
+    - ./backend/.env
+  environment:
+    ENVIRONMENT: ${ENVIRONMENT:-local}
+    DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/shop}
+    POSTGRES_URL: ${POSTGRES_URL:-postgresql+asyncpg://postgres:postgres@db:5432/shop}
+    MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017}
+    REDIS_ENABLED: ${REDIS_ENABLED:-true}
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    BROKER_URL: ${BROKER_URL:-amqp://guest:guest@rabbitmq/}
+    EVENTS_RABBITMQ_URL: ${EVENTS_RABBITMQ_URL:-amqp://guest:guest@rabbitmq/}
+
+x-backend-depends: &backend_depends
+  db:
+    condition: service_healthy
+  mongo:
+    condition: service_started
+  redis:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+
 services:
   nginx:
     image: nginx:1.27-alpine
@@ -12,38 +40,110 @@ services:
     restart: unless-stopped
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    <<: [*backend_image, *backend_env]
     container_name: fastapi_backend
     command: python scripts/start_backend.py --host 0.0.0.0 --port 8080 --reload
     volumes:
       - ./backend:/app
     ports:
       - "4000:8080"
-    env_file:
-      - ./backend/.env
     environment:
       WATCHFILES_FORCE_POLLING: "true"
       WATCHFILES_POLL_DELAY_MS: "300"
-    depends_on:
-      db:
-        condition: service_healthy
-      mongo:
-        condition: service_started
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/shop}
+      POSTGRES_URL: ${POSTGRES_URL:-postgresql+asyncpg://postgres:postgres@db:5432/shop}
+      MONGODB_URL: ${MONGODB_URL:-mongodb://mongo:27017}
+      REDIS_ENABLED: ${REDIS_ENABLED:-true}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      BROKER_URL: ${BROKER_URL:-amqp://guest:guest@rabbitmq/}
+      EVENTS_RABBITMQ_URL: ${EVENTS_RABBITMQ_URL:-amqp://guest:guest@rabbitmq/}
+    depends_on: *backend_depends
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health').read()",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready').read()",
         ]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 15s
+      start_period: 20s
     restart: unless-stopped
+
+  migrate:
+    <<: [*backend_image, *backend_env]
+    container_name: backend_migrate
+    command: python scripts/migrate.py
+    depends_on: *backend_depends
+    profiles: ["setup"]
+
+  seed:
+    <<: [*backend_image, *backend_env]
+    container_name: backend_seed
+    command: python scripts/seed.py
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["setup"]
+
+  outbox-publisher:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.outbox_publisher
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  email-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.email_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  inventory-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.inventory_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  order-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.order_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  delivery-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.delivery_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  payment-webhook-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.payment_webhook_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  analytics-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.analytics_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
+
+  cleanup-worker:
+    <<: [*backend_image, *backend_env]
+    command: python -m app.workers.cleanup_worker
+    depends_on: *backend_depends
+    restart: unless-stopped
+    profiles: ["workers"]
 
   db:
     image: postgres:16
@@ -72,6 +172,38 @@ services:
       - mongo_data:/data/db
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq_broker
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:
+  rabbitmq_data:

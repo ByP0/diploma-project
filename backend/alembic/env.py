@@ -21,6 +21,8 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment_transaction import PaymentTransaction
 from app.models.product import Product
+from app.models.product_discount import ProductDiscount
+from app.models.product_review import ProductReview
 from app.models.refresh_token import RefreshToken
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.support_message import SupportMessage

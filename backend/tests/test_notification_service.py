@@ -26,15 +26,15 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         order = SimpleNamespace(
             id=uuid4(),
             customer_email="buyer@example.com",
-            customer_name="Иван",
+            customer_name="Ivan",
             total_amount=Decimal("299.90"),
             currency="RUB",
             delivery_method=DeliveryMethodEnum.COURIER,
             payment_method=PaymentMethodEnum.CARD_ONLINE,
-            delivery_address_line1="Ленинский проспект, 5",
+            delivery_address_line1="Leninsky prospect, 5",
             delivery_address_line2=None,
-            delivery_city="Калининград",
-            delivery_region="Калининградская область",
+            delivery_city="Kaliningrad",
+            delivery_region="Kaliningrad region",
             delivery_postal_code="236000",
             delivery_country="RU",
             delivery_window_start=datetime(2026, 4, 25, 10, 0, tzinfo=timezone.utc),
@@ -48,20 +48,21 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         await service.send_order_created(order, payment)
 
         self.assertEqual(len(email_service.payloads), 1)
-        self.assertIn("Заказ", email_service.payloads[0].subject)
-        self.assertIn("Калининград", email_service.payloads[0].text_body)
+        self.assertIn("Order", email_service.payloads[0].subject)
+        self.assertIn("Kaliningrad", email_service.payloads[0].text_body)
 
     async def test_support_reply_notification_targets_ticket_email(self) -> None:
         email_service = FakeEmailService()
         service = NotificationService(email_service=email_service)
         ticket = SimpleNamespace(
-            subject="Проблема с доставкой",
+            id=uuid4(),
+            subject="Delivery issue",
             contact_email="buyer@example.com",
             status=SupportTicketStatusEnum.WAITING_CUSTOMER,
         )
-        reply = SimpleNamespace(body="Мы уже проверяем ваш заказ.")
+        reply = SimpleNamespace(body="We are already checking your order.")
 
         await service.send_support_reply(ticket, reply)
 
         self.assertEqual(email_service.payloads[0].recipients, ["buyer@example.com"])
-        self.assertIn("Мы уже проверяем", email_service.payloads[0].text_body)
+        self.assertIn("checking your order", email_service.payloads[0].text_body)

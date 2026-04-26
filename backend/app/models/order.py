@@ -11,12 +11,16 @@ from app.models.base import BaseWithUUId
 
 
 class OrderStatusEnum(str, enum.Enum):
-    PENDING = "pending"
+    CREATED = "created"
+    AWAITING_PAYMENT = "awaiting_payment"
     PAID = "paid"
-    CONFIRMED = "confirmed"
-    OUT_FOR_DELIVERY = "out_for_delivery"
+    PROCESSING = "processing"
+    PACKED = "packed"
+    SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+    FAILED = "failed"
 
 
 class DeliveryMethodEnum(str, enum.Enum):
@@ -36,6 +40,8 @@ class PaymentStatusEnum(str, enum.Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
 
 
 class Order(BaseWithUUId):
@@ -57,9 +63,14 @@ class Order(BaseWithUUId):
         "delivery_entrance",
         "delivery_intercom",
         "delivery_instructions",
+        "cancellation_reason",
+        "invoice_number",
+        "receipt_number",
     }
     __table_args__ = (
         CheckConstraint("total_amount >= 0", name="ck_orders_total_amount_non_negative"),
+        CheckConstraint("items_total_amount >= 0", name="ck_orders_items_total_amount_non_negative"),
+        CheckConstraint("delivery_cost >= 0", name="ck_orders_delivery_cost_non_negative"),
         CheckConstraint(
             "delivery_window_end IS NULL OR delivery_window_start IS NULL OR delivery_window_end > delivery_window_start",
             name="ck_orders_delivery_window_valid",
@@ -73,10 +84,13 @@ class Order(BaseWithUUId):
         index=True,
     )
     status: Mapped[OrderStatusEnum] = mapped_column(
-        default=OrderStatusEnum.PENDING,
-        server_default=OrderStatusEnum.PENDING.name,
+        default=OrderStatusEnum.CREATED,
+        server_default=OrderStatusEnum.CREATED.name,
     )
+    items_total_amount: Mapped[Decimal] = mapped_column(NUMERIC(10, 2))
+    delivery_cost: Mapped[Decimal] = mapped_column(NUMERIC(10, 2), default=Decimal("0.00"))
     total_amount: Mapped[Decimal] = mapped_column(NUMERIC(10, 2))
+    price_locked_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     customer_email: Mapped[str | None] = mapped_column(VARCHAR(255), nullable=True)
     customer_name: Mapped[str | None] = mapped_column(VARCHAR(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(VARCHAR(32), nullable=True)
@@ -121,12 +135,27 @@ class Order(BaseWithUUId):
         default="RUB",
         server_default="RUB",
     )
+    cancellation_reason: Mapped[str | None] = mapped_column(VARCHAR(1000), nullable=True)
+    invoice_number: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True)
+    receipt_number: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True)
 
     items = relationship("OrderItem", cascade="all, delete-orphan", lazy="selectin")
+    status_history = relationship(
+        "OrderStatusHistory",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="OrderStatusHistory.created_at",
+    )
     payment_transactions = relationship(
         "PaymentTransaction",
         cascade="all, delete-orphan",
         back_populates="order",
         lazy="selectin",
         order_by="PaymentTransaction.created_at",
+    )
+    delivery_shipments = relationship(
+        "DeliveryShipment",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="DeliveryShipment.created_at",
     )

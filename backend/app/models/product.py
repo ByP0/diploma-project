@@ -22,6 +22,8 @@ class Product(BaseWithUUId):
     __table_args__ = (
         UniqueConstraint("sku", name="uq_products_sku"),
         CheckConstraint("stock >= 0", name="ck_products_stock_non_negative"),
+        CheckConstraint("reserved_stock >= 0", name="ck_products_reserved_stock_non_negative"),
+        CheckConstraint("stock >= reserved_stock", name="ck_products_stock_gte_reserved"),
         CheckConstraint("price >= 0", name="ck_products_price_non_negative"),
     )
 
@@ -39,3 +41,4 @@ class Product(BaseWithUUId):
     )
     category_id: Mapped[int] = mapped_column(SMALLINT, ForeignKey('categories.id'), index=True)
     stock: Mapped[int] = mapped_column(INTEGER)
+    reserved_stock: Mapped[int] = mapped_column(INTEGER, default=0, server_default=text("0"))

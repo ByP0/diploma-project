@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shop-backend-config
+  namespace: shop
+data:
+  ENVIRONMENT: production
+  MONGODB_DB_NAME: shop_assets
+  REDIS_ENABLED: "true"
+  EVENTS_RABBITMQ_EXCHANGE_NAME: shop.events
+  EVENTS_RABBITMQ_QUEUE_ROUTING_KEY: shop.#
+  EVENTS_RABBITMQ_DEAD_LETTER_QUEUE_NAME: shop.events.dlq
+  LOG_JSON: "true"
+  METRICS_ENABLED: "true"
+  HTTPS_REDIRECT_ENABLED: "true"
+  SECURITY_HSTS_ENABLED: "true"
+  COOKIE_SECURE: "true"
+  CSRF_ENABLED: "true"

@@ -1,163 +1,244 @@
 from uuid import UUID
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
 
-from app.api.docs import build_error_responses
-from app.api.deps import CurrentAdmin, CurrentUser, SessionDep
-from app.schemas.order import OrderCheckoutCreate, OrderRead, OrderStatusUpdate
-from app.services.admin_audit_service import AdminAuditService
+from app.api.deps import CurrentUser, SessionDep, require_permissions
+from app.core.permissions import PermissionEnum
+from app.schemas.cart import CartRead
+from app.schemas.order import (
+    OrderCancelRequest,
+    OrderCheckoutCreate,
+    OrderDocumentRead,
+    OrderRead,
+    OrderRefundRequest,
+    OrderStatusUpdate,
+)
 from app.services.order_service import OrderService
 
+router = APIRouter(prefix="/orders", tags=["Orders"])
 
-router = APIRouter(prefix="/orders", tags=["Заказы"])
 
-
-@router.post(
-    "/from-cart",
-    response_model=OrderRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Создать заказ из корзины",
-    description="Оформляет заказ на основе текущей корзины пользователя с полными checkout-данными.",
-    responses=build_error_responses(400, 401, 422, 500),
-)
+@router.post("/from-cart", response_model=OrderRead, status_code=status.HTTP_201_CREATED)
 async def create_order_from_cart(
     data: OrderCheckoutCreate,
     session: SessionDep,
     current_user: CurrentUser,
 ):
     service = OrderService(session)
-
     try:
         return await service.create_from_cart(current_user, data)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post(
-    "/{order_id}/payments/retry",
-    response_model=OrderRead,
-    summary="Повторить оплату заказа",
-    description="Переинициализирует платёжную транзакцию для заказа с online payment flow.",
-    responses=build_error_responses(400, 401, 404, 422, 500),
-)
+@router.post("/{order_id}/payments/retry", response_model=OrderRead)
 async def retry_order_payment(
-    order_id: Annotated[
-        UUID,
-        Path(description="Идентификатор заказа"),
-    ],
+    order_id: Annotated[UUID, Path()],
     session: SessionDep,
     current_user: CurrentUser,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ):
     service = OrderService(session)
     try:
-        order = await service.retry_payment(current_user.id, order_id)
+        order = await service.retry_payment(
+            current_user.id,
+            order_id,
+            idempotency_key=idempotency_key,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     if not order:
-        raise HTTPException(status_code=404, detail="Заказ не найден.")
-
+        raise HTTPException(status_code=404, detail="Order was not found.")
     return order
 
 
-@router.get(
-    "",
-    response_model=list[OrderRead],
-    summary="Получить историю заказов",
-    description="Возвращает историю заказов текущего пользователя с пагинацией.",
-    responses=build_error_responses(401, 422, 500),
-)
+@router.post("/{order_id}/payments/sync", response_model=OrderRead)
+async def sync_order_payment(
+    order_id: Annotated[UUID, Path()],
+    session: SessionDep,
+    current_user: CurrentUser,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+):
+    order = await OrderService(session).sync_payment_status(
+        order_id=order_id,
+        user_id=current_user.id,
+        actor_user=current_user,
+        idempotency_key=idempotency_key,
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return order
+
+
+@router.get("", response_model=list[OrderRead])
 async def get_order_history(
     session: SessionDep,
     current_user: CurrentUser,
-    limit: Annotated[
-        int,
-        Query(
-            title="Лимит",
-            description="Максимальное количество заказов в ответе",
-            ge=1,
-            le=100,
-        ),
-    ] = 20,
-    offset: Annotated[
-        int,
-        Query(
-            title="Смещение",
-            description="Количество заказов, которое нужно пропустить",
-            ge=0,
-        ),
-    ] = 0,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ):
-    service = OrderService(session)
-    return await service.get_history(current_user.id, limit=limit, offset=offset)
+    return await OrderService(session).get_history(current_user.id, limit=limit, offset=offset)
 
 
-@router.get(
-    "/{order_id}",
-    response_model=OrderRead,
-    summary="Получить заказ по идентификатору",
-    description="Возвращает детальную информацию по одному заказу текущего пользователя.",
-    responses=build_error_responses(401, 404, 422, 500),
-)
+@router.get("/{order_id}", response_model=OrderRead)
 async def get_order_by_id(
-    order_id: Annotated[
-        UUID,
-        Path(
-            title="Идентификатор заказа",
-            description="Идентификатор заказа",
-        ),
-    ],
+    order_id: Annotated[UUID, Path()],
     session: SessionDep,
     current_user: CurrentUser,
 ):
-    service = OrderService(session)
-    order = await service.get_by_id_for_user(current_user.id, order_id)
-
+    order = await OrderService(session).get_by_id_for_user(current_user.id, order_id)
     if not order:
-        raise HTTPException(status_code=404, detail="Заказ не найден.")
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return order
 
+
+@router.post("/{order_id}/cancel", response_model=OrderRead)
+async def cancel_order(
+    order_id: Annotated[UUID, Path()],
+    data: OrderCancelRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    try:
+        order = await OrderService(session).cancel_order(
+            order_id=order_id,
+            user_id=current_user.id,
+            actor_user=current_user,
+            reason=data.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not order:
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return order
+
+
+@router.post("/{order_id}/refund", response_model=OrderRead)
+async def refund_order(
+    order_id: Annotated[UUID, Path()],
+    data: OrderRefundRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    try:
+        order = await OrderService(session).refund_order(
+            order_id=order_id,
+            data=data,
+            user_id=current_user.id,
+            actor_user=current_user,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not order:
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return order
+
+
+@router.post("/{order_id}/repeat", response_model=CartRead)
+async def repeat_order(
+    order_id: Annotated[UUID, Path()],
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    try:
+        cart = await OrderService(session).reorder(user=current_user, order_id=order_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not cart:
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return cart
+
+
+@router.get("/{order_id}/documents/{document_type}", response_model=OrderDocumentRead)
+async def get_order_document(
+    order_id: Annotated[UUID, Path()],
+    document_type: Annotated[str, Path(pattern="^(invoice|receipt)$")],
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    try:
+        document = await OrderService(session).build_document(
+            order_id=order_id,
+            document_type=document_type,
+            user_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not document:
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return document
+
+
+@router.get(
+    "/management/list",
+    response_model=list[OrderRead],
+    dependencies=[Depends(require_permissions(PermissionEnum.MANAGE_ORDERS))],
+)
+async def list_orders_admin(
+    session: SessionDep,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    return await OrderService(session).list_all(limit=limit, offset=offset)
+
+
+@router.get(
+    "/management/{order_id}",
+    response_model=OrderRead,
+    dependencies=[Depends(require_permissions(PermissionEnum.MANAGE_ORDERS))],
+)
+async def get_order_admin(order_id: Annotated[UUID, Path()], session: SessionDep):
+    order = await OrderService(session).get_by_id(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order was not found.")
     return order
 
 
 @router.patch(
     "/{order_id}/status",
     response_model=OrderRead,
-    summary="Изменить статус заказа",
-    description="Обновляет статус заказа. Доступно только администратору.",
-    responses=build_error_responses(400, 401, 403, 404, 422, 500),
+    dependencies=[Depends(require_permissions(PermissionEnum.MANAGE_ORDERS))],
 )
 async def update_order_status(
-    order_id: Annotated[
-        UUID,
-        Path(
-            title="Идентификатор заказа",
-            description="Идентификатор заказа для обновления статуса",
-        ),
-    ],
+    order_id: Annotated[UUID, Path()],
     data: OrderStatusUpdate,
-    request: Request,
     session: SessionDep,
-    current_admin: CurrentAdmin,
+    current_user: CurrentUser,
 ):
-    service = OrderService(session)
     try:
-        order = await service.update_status(order_id=order_id, status=data.status)
+        order = await OrderService(session).update_status(
+            order_id=order_id,
+            status=data.status,
+            actor_user=current_user,
+            reason=data.reason,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     if not order:
-        raise HTTPException(status_code=404, detail="Заказ не найден.")
+        raise HTTPException(status_code=404, detail="Order was not found.")
+    return order
 
-    audit_service = AdminAuditService(session)
-    await audit_service.record(
-        request=request,
-        admin_user=current_admin,
-        action="update_status",
-        resource_type="order",
-        resource_id=str(order.id),
-        status_code=200,
-        details={"status": order.status.value, "payment_status": order.payment_status.value},
-    )
 
+@router.post(
+    "/management/{order_id}/cancel",
+    response_model=OrderRead,
+    dependencies=[Depends(require_permissions(PermissionEnum.MANAGE_ORDERS))],
+)
+async def cancel_order_admin(
+    order_id: Annotated[UUID, Path()],
+    data: OrderCancelRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+):
+    try:
+        order = await OrderService(session).cancel_order(
+            order_id=order_id,
+            actor_user=current_user,
+            reason=data.reason,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not order:
+        raise HTTPException(status_code=404, detail="Order was not found.")
     return order

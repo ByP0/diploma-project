@@ -1,0 +1,45 @@
+workers:
+  outbox-publisher:
+    command: python -m app.workers.outbox_publisher
+    concurrency: 1
+    queue: outbox_messages
+  email-worker:
+    command: python -m app.workers.email_worker
+    concurrency: 1
+    queue: notification_messages
+  analytics-worker:
+    command: python -m app.workers.analytics_worker
+    concurrency: 1
+    rabbitmq_queue: shop.events.analytics
+    routing_keys:
+      - shop.AnalyticsSyncRequested
+  inventory-worker:
+    command: python -m app.workers.inventory_worker
+    concurrency: 1
+    rabbitmq_queue: shop.events.inventory
+    routing_keys:
+      - shop.ERPInventorySyncRequested
+      - shop.AdminAlertRequested
+  order-worker:
+    command: python -m app.workers.order_worker
+    concurrency: 1
+    rabbitmq_queue: shop.events.orders
+    routing_keys:
+      - shop.CRMOrderSyncRequested
+      - shop.ERPOrderSyncRequested
+      - shop.ReceiptGenerationRequested
+  delivery-worker:
+    command: python -m app.workers.delivery_worker
+    concurrency: 1
+    rabbitmq_queue: shop.events.delivery
+    routing_keys:
+      - shop.BackgroundTaskRequested
+  payment-webhook-worker:
+    command: python -m app.workers.payment_webhook_worker
+    concurrency: 1
+    rabbitmq_queue: shop.events.payment-webhooks
+    routing_keys:
+      - shop.BackgroundTaskRequested
+  cleanup-worker:
+    command: python -m app.workers.cleanup_worker --once
+    schedule: every 15 minutes

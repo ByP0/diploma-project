@@ -6,7 +6,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from app.core.security import password_service
-from app.schemas.user import UserProfileUpdate, UserRead
+from app.schemas.user import UserAdminUpdate, UserProfileUpdate, UserRead
 from app.services.user_service import UserService
 
 
@@ -56,15 +56,25 @@ class UserProfileSchemaTests(unittest.TestCase):
             SimpleNamespace(
                 id=uuid4(),
                 email="buyer@example.com",
-                name="Иван",
+                name="Ivan",
                 avatar_image_id="6622eacaf2f4b22a4eb8ac11",
                 role="user",
+                is_active=True,
+                is_blocked=False,
+                blocked_at=None,
+                blocked_reason=None,
+                email_verified_at=None,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
             )
         )
 
         self.assertEqual(model.avatar_url, "/api/images/6622eacaf2f4b22a4eb8ac11")
+        self.assertFalse(model.is_email_verified)
+
+    def test_admin_update_defaults_block_reason(self) -> None:
+        payload = UserAdminUpdate(is_blocked=True)
+        self.assertEqual(payload.blocked_reason, "Blocked by staff")
 
 
 class UserServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -72,18 +82,18 @@ class UserServiceTests(unittest.IsolatedAsyncioTestCase):
         session = FakeSession()
         user = SimpleNamespace(
             id=uuid4(),
-            name="Старое имя",
+            name="Old Name",
             hashed_password=password_service.hash("Password1!"),
         )
 
         updated_user = await UserService(session).update_profile(
             user,
-            name="Новое имя",
+            name="New Name",
             current_password="Password1!",
             new_password="NewPassword1!",
         )
 
-        self.assertEqual(updated_user.name, "Новое имя")
+        self.assertEqual(updated_user.name, "New Name")
         self.assertTrue(password_service.verify("NewPassword1!", updated_user.hashed_password))
         self.assertEqual(session.commit_calls, 1)
         self.assertEqual(session.refresh_calls, 1)
@@ -94,7 +104,7 @@ class UserServiceTests(unittest.IsolatedAsyncioTestCase):
         image_service = FakeImageService()
         user = SimpleNamespace(
             id=uuid4(),
-            name="Иван",
+            name="Ivan",
             hashed_password=password_service.hash("Password1!"),
             avatar_image_id="6622eacaf2f4b22a4eb8ac10",
         )

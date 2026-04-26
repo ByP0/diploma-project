@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 class SupportService:
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.notification_service = NotificationService()
+        self.notification_service = NotificationService(session)
         self.alert_service = AlertService()
 
     async def get_or_create_ticket_for_chat(

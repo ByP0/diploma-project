@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 class ObservabilityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = uuid4().hex
+        correlation_id = request.headers.get("X-Correlation-ID") or request_id
         request.state.request_id = request_id
-        context_tokens = bind_request_context(request_id)
+        request.state.correlation_id = correlation_id
+        context_tokens = bind_request_context(request_id, correlation_id=correlation_id)
         started_at = perf_counter()
         response = None
 
@@ -39,10 +41,12 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                 )
                 response.headers["Retry-After"] = str(retry_after)
                 response.headers["X-Request-ID"] = request_id
+                response.headers["X-Correlation-ID"] = correlation_id
                 return response
 
             response = await call_next(request)
             response.headers["X-Request-ID"] = request_id
+            response.headers["X-Correlation-ID"] = correlation_id
             return response
         finally:
             duration_ms = (perf_counter() - started_at) * 1000
@@ -65,6 +69,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     "raw_path": request.url.path,
                     "status_code": status_code,
                     "duration_ms": round(duration_ms, 2),
+                    "correlation_id": correlation_id,
                     "client_ip": request.client.host if request.client else "unknown",
                 },
             )

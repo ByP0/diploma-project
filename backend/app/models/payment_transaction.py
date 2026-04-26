@@ -16,6 +16,7 @@ from app.models.order import PaymentMethodEnum, PaymentStatusEnum
 class PaymentTransaction(BaseWithUUId):
     __tablename__ = "payment_transactions"
     __allow_nullable__ = {
+        "parent_transaction_id",
         "external_payment_id",
         "redirect_url",
         "failure_code",
@@ -33,6 +34,7 @@ class PaymentTransaction(BaseWithUUId):
         Index("ix_payment_transactions_order_id", "order_id"),
         Index("ix_payment_transactions_status", "status"),
         Index("ix_payment_transactions_provider_name", "provider_name"),
+        Index("ix_payment_transactions_external_payment_id", "external_payment_id"),
         UniqueConstraint(
             "idempotency_key",
             name="uq_payment_transactions_idempotency_key",
@@ -43,7 +45,13 @@ class PaymentTransaction(BaseWithUUId):
         PG_UUID(as_uuid=True),
         ForeignKey("orders.id", ondelete="CASCADE"),
     )
+    parent_transaction_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("payment_transactions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     provider_name: Mapped[str] = mapped_column(VARCHAR(64))
+    operation_type: Mapped[str] = mapped_column(VARCHAR(32), default="payment_intent", server_default="payment_intent")
     payment_method: Mapped[PaymentMethodEnum]
     status: Mapped[PaymentStatusEnum]
     amount: Mapped[Decimal] = mapped_column(NUMERIC(10, 2))
@@ -63,5 +71,10 @@ class PaymentTransaction(BaseWithUUId):
     order = relationship(
         "Order",
         back_populates="payment_transactions",
+        lazy="joined",
+    )
+    parent_transaction = relationship(
+        "PaymentTransaction",
+        remote_side="PaymentTransaction.id",
         lazy="joined",
     )

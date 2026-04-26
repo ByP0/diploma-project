@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.config import setting
-from app.observability.context import get_request_id, get_user_id
+from app.observability.context import get_correlation_id, get_request_id, get_user_id
 
 
 _STANDARD_LOG_FIELDS = {
@@ -39,6 +39,8 @@ class RequestContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if not hasattr(record, "request_id"):
             record.request_id = get_request_id()
+        if not hasattr(record, "correlation_id"):
+            record.correlation_id = get_correlation_id()
         if not hasattr(record, "user_id"):
             record.user_id = get_user_id()
         return True
@@ -52,6 +54,7 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
             "request_id": getattr(record, "request_id", None),
+            "correlation_id": getattr(record, "correlation_id", None),
             "user_id": getattr(record, "user_id", None),
         }
         for key, value in record.__dict__.items():
@@ -74,7 +77,7 @@ def configure_logging() -> None:
     else:
         handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s %(levelname)s %(name)s %(message)s [request_id=%(request_id)s user_id=%(user_id)s]"
+                "%(asctime)s %(levelname)s %(name)s %(message)s [request_id=%(request_id)s correlation_id=%(correlation_id)s user_id=%(user_id)s]"
             )
         )
 

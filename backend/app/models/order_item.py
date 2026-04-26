@@ -12,6 +12,8 @@ class OrderItem(BaseWithUUId):
     __tablename__ = "order_items"
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_order_items_quantity_positive"),
+        CheckConstraint("returned_quantity >= 0", name="ck_order_items_returned_quantity_non_negative"),
+        CheckConstraint("returned_quantity <= quantity", name="ck_order_items_returned_quantity_lte_quantity"),
         CheckConstraint("unit_price >= 0", name="ck_order_items_unit_price_non_negative"),
         CheckConstraint("line_total >= 0", name="ck_order_items_line_total_non_negative"),
     )
@@ -29,4 +31,5 @@ class OrderItem(BaseWithUUId):
     product_name: Mapped[str] = mapped_column(TEXT)
     unit_price: Mapped[Decimal] = mapped_column(NUMERIC(10, 2))
     quantity: Mapped[int] = mapped_column(INTEGER)
+    returned_quantity: Mapped[int] = mapped_column(INTEGER, default=0, server_default="0")
     line_total: Mapped[Decimal] = mapped_column(NUMERIC(10, 2))

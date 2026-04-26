@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import secrets
+
 from fastapi import Response
 
 from app.core.config import setting
@@ -32,6 +34,21 @@ def set_refresh_cookie(response: Response, token: str) -> None:
     )
 
 
+def set_csrf_cookie(response: Response, token: str | None = None) -> str:
+    csrf_token = token or secrets.token_urlsafe(32)
+    response.set_cookie(
+        key=setting.csrf_cookie_name,
+        value=csrf_token,
+        secure=setting.cookie_secure,
+        samesite=setting.cookie_samesite,
+        domain=setting.cookie_domain,
+        path="/",
+        httponly=False,
+        max_age=setting.refresh_token_expire_days * 24 * 60 * 60,
+    )
+    return csrf_token
+
+
 def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(
         key=setting.access_cookie_name,
@@ -40,6 +57,11 @@ def clear_auth_cookies(response: Response) -> None:
     )
     response.delete_cookie(
         key=setting.refresh_cookie_name,
+        path="/",
+        domain=setting.cookie_domain,
+    )
+    response.delete_cookie(
+        key=setting.csrf_cookie_name,
         path="/",
         domain=setting.cookie_domain,
     )

@@ -6,19 +6,21 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request, status
 
 from app.api.deps import CurrentAdmin, SessionDep
 from app.api.docs import build_error_responses, message_response
+from app.cache import cache_service
+from app.core.config import setting
 from app.schemas.common import MessageResponse
 from app.schemas.product import ProductCreate, ProductRead, ProductUpdate
 from app.services.admin_audit_service import AdminAuditService
 from app.services.product_service import ProductService
 
 
-router = APIRouter(prefix="/products", tags=["Товары"])
+router = APIRouter(prefix="/products", tags=["РўРѕРІР°СЂС‹"])
 
 
 @router.get(
     "",
     response_model=list[ProductRead],
-    summary="Получить список товаров",
+    summary="РџРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє С‚РѕРІР°СЂРѕРІ",
     responses=build_error_responses(400, 422, 500),
 )
 async def get_products(
@@ -34,10 +36,17 @@ async def get_products(
     if min_price is not None and max_price is not None and min_price > max_price:
         raise HTTPException(
             status_code=400,
-            detail="Минимальная цена не может быть больше максимальной.",
+            detail="РњРёРЅРёРјР°Р»СЊРЅР°СЏ С†РµРЅР° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№.",
         )
 
-    return await ProductService(session).get_list(
+    cache_key = (
+        f"catalog:products:list:{category_id}:{min_price}:{max_price}:{search}:{active_only}:{limit}:{offset}"
+    )
+    cached = await cache_service.get_json(cache_key)
+    if cached is not None:
+        return cached
+
+    products = await ProductService(session).get_list(
         limit=limit,
         offset=offset,
         category_id=category_id,
@@ -46,29 +55,40 @@ async def get_products(
         search=search,
         active_only=active_only,
     )
+    payload = [ProductRead.model_validate(product).model_dump(mode="json") for product in products]
+    await cache_service.set_json(cache_key, payload, ttl_seconds=setting.catalog_cache_ttl_seconds)
+    return payload
 
 
 @router.get(
     "/{product_id}",
     response_model=ProductRead,
-    summary="Получить товар по идентификатору",
+    summary="РџРѕР»СѓС‡РёС‚СЊ С‚РѕРІР°СЂ РїРѕ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂСѓ",
     responses=build_error_responses(404, 422, 500),
 )
 async def get_product(
     session: SessionDep,
     product_id: Annotated[UUID, Path()],
 ):
+    cache_key = f"catalog:products:item:{product_id}"
+    cached = await cache_service.get_json(cache_key)
+    if cached is not None:
+        return cached
+
     product = await ProductService(session).get_by_id(product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Товар не найден.")
-    return product
+        raise HTTPException(status_code=404, detail="РўРѕРІР°СЂ РЅРµ РЅР°Р№РґРµРЅ.")
+
+    payload = ProductRead.model_validate(product).model_dump(mode="json")
+    await cache_service.set_json(cache_key, payload, ttl_seconds=setting.catalog_cache_ttl_seconds)
+    return payload
 
 
 @router.post(
     "",
     response_model=ProductRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Создать товар",
+    summary="РЎРѕР·РґР°С‚СЊ С‚РѕРІР°СЂ",
     responses=build_error_responses(400, 401, 403, 422, 500),
 )
 async def create_product(
@@ -103,13 +123,14 @@ async def create_product(
         status_code=201,
         details={"sku": product.sku},
     )
+    await cache_service.delete_by_prefix("catalog:products:")
     return product
 
 
 @router.put(
     "/{product_id}",
     response_model=ProductRead,
-    summary="Обновить товар",
+    summary="РћР±РЅРѕРІРёС‚СЊ С‚РѕРІР°СЂ",
     responses=build_error_responses(400, 401, 403, 404, 422, 500),
 )
 async def update_product(
@@ -138,7 +159,7 @@ async def update_product(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if not product:
-        raise HTTPException(status_code=404, detail="Товар не найден.")
+        raise HTTPException(status_code=404, detail="РўРѕРІР°СЂ РЅРµ РЅР°Р№РґРµРЅ.")
 
     await AdminAuditService(session).record(
         request=request,
@@ -149,16 +170,17 @@ async def update_product(
         status_code=200,
         details={"sku": product.sku},
     )
+    await cache_service.delete_by_prefix("catalog:products:")
     return product
 
 
 @router.delete(
     "/{product_id}",
     response_model=MessageResponse,
-    summary="Удалить товар",
+    summary="РЈРґР°Р»РёС‚СЊ С‚РѕРІР°СЂ",
     responses={
         **build_error_responses(401, 403, 404, 422, 500),
-        200: message_response("Товар успешно удалён."),
+        200: message_response("РўРѕРІР°СЂ СѓСЃРїРµС€РЅРѕ СѓРґР°Р»С‘РЅ."),
     },
 )
 async def delete_product(
@@ -169,7 +191,7 @@ async def delete_product(
 ):
     deleted = await ProductService(session).delete(product_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Товар не найден.")
+        raise HTTPException(status_code=404, detail="РўРѕРІР°СЂ РЅРµ РЅР°Р№РґРµРЅ.")
 
     await AdminAuditService(session).record(
         request=request,
@@ -179,4 +201,5 @@ async def delete_product(
         resource_id=str(product_id),
         status_code=200,
     )
-    return MessageResponse(detail="Товар успешно удалён.")
+    await cache_service.delete_by_prefix("catalog:products:")
+    return MessageResponse(detail="РўРѕРІР°СЂ СѓСЃРїРµС€РЅРѕ СѓРґР°Р»С‘РЅ.")

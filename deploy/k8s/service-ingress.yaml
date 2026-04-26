@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-backend
+  namespace: shop
+spec:
+  type: ClusterIP
+  selector:
+    app: shop-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop-backend
+  namespace: shop
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: shop-backend
+                port:
+                  number: 80

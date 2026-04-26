@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: shop-migrate
+  namespace: shop
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/example/shop-backend:latest
+          command: ["python", "scripts/migrate.py"]
+          envFrom:
+            - configMapRef:
+                name: shop-backend-config
+            - secretRef:
+                name: shop-backend-secrets

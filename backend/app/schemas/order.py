@@ -21,6 +21,7 @@ class OrderItemRead(BaseModel):
     product_name: str
     unit_price: Decimal
     quantity: int
+    returned_quantity: int
     line_total: Decimal
 
     model_config = ConfigDict(from_attributes=True)
@@ -28,7 +29,9 @@ class OrderItemRead(BaseModel):
 
 class PaymentTransactionRead(BaseModel):
     id: UUID
+    parent_transaction_id: UUID | None
     provider_name: str
+    operation_type: str
     payment_method: PaymentMethodEnum
     status: PaymentStatusEnum
     amount: Decimal
@@ -43,21 +46,40 @@ class PaymentTransactionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DeliveryShipmentRead(BaseModel):
+    id: UUID
+    provider_name: str
+    delivery_method: DeliveryMethodEnum
+    status: str
+    quoted_cost: Decimal
+    external_delivery_id: str | None
+    tracking_number: str | None
+    shipped_at: datetime | None
+    delivered_at: datetime | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderStatusHistoryRead(BaseModel):
+    id: UUID
+    from_status: str | None
+    to_status: str
+    actor_user_id: UUID | None
+    actor_role: str | None
+    reason: str | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderCheckoutCreate(BaseModel):
-    customer_name: Annotated[
-        str,
-        Field(min_length=2, max_length=255),
-    ]
-    customer_phone: Annotated[
-        str,
-        Field(min_length=7, max_length=32, pattern=r"^[0-9+()\-\s]+$"),
-    ]
-    customer_comment: Annotated[
-        str | None,
-        Field(max_length=1000),
-    ] = None
+    customer_name: Annotated[str, Field(min_length=2, max_length=255)]
+    customer_phone: Annotated[str, Field(min_length=7, max_length=32, pattern=r"^[0-9+()\-\s]+$")]
+    customer_comment: Annotated[str | None, Field(max_length=1000)] = None
     delivery_method: DeliveryMethodEnum = DeliveryMethodEnum.COURIER
     payment_method: PaymentMethodEnum = PaymentMethodEnum.CARD_ONLINE
+    payment_provider: Annotated[str | None, Field(max_length=64)] = None
     delivery_window_start: datetime | None = None
     delivery_window_end: datetime | None = None
     delivery_address_line1: Annotated[str | None, Field(max_length=255)] = None
@@ -77,6 +99,7 @@ class OrderCheckoutCreate(BaseModel):
         "customer_name",
         "customer_phone",
         "customer_comment",
+        "payment_provider",
         "delivery_address_line1",
         "delivery_address_line2",
         "delivery_city",
@@ -92,7 +115,7 @@ class OrderCheckoutCreate(BaseModel):
         mode="before",
     )
     @classmethod
-    def normalize_optional_strings(cls, value: object) -> object:
+    def normalize_strings(cls, value: object) -> object:
         if isinstance(value, str):
             normalized = value.strip()
             return normalized or None
@@ -100,7 +123,7 @@ class OrderCheckoutCreate(BaseModel):
 
     @field_validator("delivery_country", "currency", mode="after")
     @classmethod
-    def upper_short_codes(cls, value: str | None) -> str | None:
+    def normalize_codes(cls, value: str | None) -> str | None:
         if value is None:
             return value
         return value.upper()
@@ -108,34 +131,49 @@ class OrderCheckoutCreate(BaseModel):
     @model_validator(mode="after")
     def validate_checkout(self) -> "OrderCheckoutCreate":
         if self.delivery_method != DeliveryMethodEnum.PICKUP:
-            required_fields = {
-                "delivery_address_line1": self.delivery_address_line1,
-                "delivery_city": self.delivery_city,
-            }
-            missing = [field_name for field_name, value in required_fields.items() if not value]
-            if missing:
-                raise ValueError(
-                    "Для доставки необходимо заполнить адрес: delivery_address_line1 и delivery_city."
-                )
+            if not self.delivery_address_line1 or not self.delivery_city:
+                raise ValueError("delivery_address_line1 and delivery_city are required for delivery")
 
         if (self.delivery_window_start is None) != (self.delivery_window_end is None):
-            raise ValueError("Окно доставки нужно передавать целиком: и начало, и конец.")
+            raise ValueError("delivery window must contain both start and end")
 
         if self.delivery_window_start and self.delivery_window_end:
             if self.delivery_window_end <= self.delivery_window_start:
-                raise ValueError("Конец окна доставки должен быть позже начала.")
+                raise ValueError("delivery window end must be after start")
             if (self.delivery_window_end - self.delivery_window_start).total_seconds() > 24 * 60 * 60:
-                raise ValueError("Окно доставки не должно превышать 24 часа.")
+                raise ValueError("delivery window must not exceed 24 hours")
 
         return self
 
     model_config = ConfigDict(extra="forbid")
 
 
+class CheckoutLineRead(BaseModel):
+    product_id: UUID
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    line_total: Decimal
+
+
+class CheckoutPreviewRead(BaseModel):
+    items: list[CheckoutLineRead]
+    items_total_amount: Decimal
+    delivery_cost: Decimal
+    total_amount: Decimal
+    currency: str
+    delivery_method: DeliveryMethodEnum
+    payment_method: PaymentMethodEnum
+    calculated_at: datetime
+
+
 class OrderRead(BaseModel):
     id: UUID
     status: OrderStatusEnum
+    items_total_amount: Decimal
+    delivery_cost: Decimal
     total_amount: Decimal
+    price_locked_at: datetime
     customer_email: str | None
     customer_name: str | None
     customer_phone: str | None
@@ -157,15 +195,52 @@ class OrderRead(BaseModel):
     payment_method: PaymentMethodEnum
     payment_status: PaymentStatusEnum
     currency: str
+    cancellation_reason: str | None
+    invoice_number: str | None
+    receipt_number: str | None
     created_at: datetime
     updated_at: datetime
     items: list[OrderItemRead]
     payment_transactions: list[PaymentTransactionRead]
+    status_history: list[OrderStatusHistoryRead] = []
+    delivery_shipments: list[DeliveryShipmentRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class OrderStatusUpdate(BaseModel):
-    status: Annotated[OrderStatusEnum, Field()]
+    status: OrderStatusEnum
+    reason: Annotated[str | None, Field(max_length=1000)] = None
 
     model_config = ConfigDict(extra="forbid")
+
+
+class OrderCancelRequest(BaseModel):
+    reason: Annotated[str | None, Field(max_length=1000)] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrderRefundItemRequest(BaseModel):
+    order_item_id: UUID
+    quantity: Annotated[int, Field(ge=1)]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrderRefundRequest(BaseModel):
+    items: list[OrderRefundItemRequest]
+    reason: Annotated[str | None, Field(max_length=1000)] = None
+    idempotency_key: Annotated[str | None, Field(max_length=128)] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrderDocumentRead(BaseModel):
+    document_type: str
+    document_number: str
+    order_id: UUID
+    issued_at: datetime
+    amount: Decimal
+    currency: str
+    items: list[OrderItemRead]
