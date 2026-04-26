@@ -1,3 +1,1 @@
-from app.events.inbox.service import InboxService
-
-__all__ = ["InboxService"]
+__all__: list[str] = []

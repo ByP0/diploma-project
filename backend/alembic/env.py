@@ -7,27 +7,14 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
-from app.models.base import Base, BaseWithUUId
+from app.models.base import Base
+import app.models  # noqa: F401
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-
-from app.models.category import Category
-from app.models.cart_item import CartItem
-from app.models.order import Order
-from app.models.order_item import OrderItem
-from app.models.payment_transaction import PaymentTransaction
-from app.models.product import Product
-from app.models.product_discount import ProductDiscount
-from app.models.product_review import ProductReview
-from app.models.refresh_token import RefreshToken
-from app.models.admin_audit_log import AdminAuditLog
-from app.models.support_message import SupportMessage
-from app.models.support_ticket import SupportTicket
-from app.models.user import User
 
 target_metadata = Base.metadata
 
