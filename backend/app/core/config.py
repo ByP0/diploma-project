@@ -1,5 +1,32 @@
+import json
+from typing import Annotated
+
 from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+
+StringList = Annotated[list[str], NoDecode]
+
+
+def parse_string_list(value: object, *, lowercase: bool = False) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        if stripped.startswith("["):
+            try:
+                value = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValueError("Expected a JSON list or comma separated string") from exc
+        else:
+            items = [item.strip() for item in stripped.split(",") if item.strip()]
+            return [item.lower() for item in items] if lowercase else items
+    if isinstance(value, (list, tuple, set)):
+        items = [str(item).strip() for item in value if str(item).strip()]
+        return [item.lower() for item in items] if lowercase else items
+    raise ValueError("Expected a list or comma separated string")
 
 
 class Settings(BaseSettings):
@@ -41,7 +68,7 @@ class Settings(BaseSettings):
     smtp_timeout_seconds: int = 10
     smtp_from_email: str = "no-reply@example.com"
     smtp_from_name: str = "Store Notifications"
-    admin_alert_emails: list[str] = Field(default_factory=list)
+    admin_alert_emails: StringList = Field(default_factory=list)
     payment_provider: str = "stub"
     payment_stub_auto_approve: bool = True
     payment_stub_failure_keyword: str = "FAIL_PAYMENT"
@@ -70,7 +97,7 @@ class Settings(BaseSettings):
     catalog_cache_ttl_seconds: int = 120
     category_cache_ttl_seconds: int = 300
     image_cdn_base_url: str | None = None
-    cors_allowed_origins: list[str] = Field(default_factory=list)
+    cors_allowed_origins: StringList = Field(default_factory=list)
     cors_allow_credentials: bool = True
     https_redirect_enabled: bool = False
     gzip_enabled: bool = True
@@ -78,7 +105,7 @@ class Settings(BaseSettings):
     csrf_enabled: bool = True
     csrf_cookie_name: str = "csrf_token"
     csrf_header_name: str = "X-CSRF-Token"
-    csrf_safe_paths: list[str] = Field(default_factory=lambda: [
+    csrf_safe_paths: StringList = Field(default_factory=lambda: [
         "/health",
         "/health/live",
         "/health/ready",
@@ -107,6 +134,17 @@ class Settings(BaseSettings):
         "default-src 'self'; img-src 'self' data: https:; object-src 'none'; "
         "base-uri 'self'; frame-ancestors 'none'"
     )
+    security_docs_content_security_policy: str = (
+        "default-src 'self'; "
+        "img-src 'self' data: https://fastapi.tiangolo.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' data: https://cdn.jsdelivr.net; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
     worker_poll_interval_seconds: int = 10
     worker_batch_size: int = 100
     sentry_dsn: str | None = Field(default=None, validation_alias=AliasChoices("SENTRY_DSN", "ERROR_TRACKING_DSN"))
@@ -129,28 +167,12 @@ class Settings(BaseSettings):
     @field_validator("admin_alert_emails", mode="before")
     @classmethod
     def normalize_admin_alert_emails(cls, value: object) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            return [
-                item.strip().lower()
-                for item in value.split(",")
-                if item.strip()
-            ]
-        if isinstance(value, (list, tuple, set)):
-            return [str(item).strip().lower() for item in value if str(item).strip()]
-        raise ValueError("admin_alert_emails must be a list or comma separated string")
+        return parse_string_list(value, lowercase=True)
 
     @field_validator("cors_allowed_origins", "csrf_safe_paths", mode="before")
     @classmethod
     def normalize_string_lists(cls, value: object) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
-        if isinstance(value, (list, tuple, set)):
-            return [str(item).strip() for item in value if str(item).strip()]
-        raise ValueError("Expected a list or comma separated string")
+        return parse_string_list(value)
 
     @field_validator("environment")
     @classmethod
@@ -174,6 +196,7 @@ class Settings(BaseSettings):
         "security_content_type_options",
         "security_referrer_policy",
         "security_content_security_policy",
+        "security_docs_content_security_policy",
         "log_level",
         mode="before",
     )

@@ -3,11 +3,13 @@
 ## Local Docker
 
 ```bash
-docker compose up --build
-docker compose --profile workers up --build
+docker compose up --build -d
 docker compose --profile setup run --rm migrate
 docker compose --profile setup run --rm seed
+docker compose --profile workers up --build -d
 ```
+
+Local web gateway is available at `http://localhost:8080` by default. Override it with `NGINX_PORT`.
 
 ## Environments
 

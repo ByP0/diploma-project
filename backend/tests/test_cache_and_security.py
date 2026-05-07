@@ -1,17 +1,19 @@
 import unittest
 
 from starlette.requests import Request
+from starlette.responses import PlainTextResponse
 
 from app.cache.service import CacheService
 from app.core.config import setting
+from app.observability.security_middleware import SecurityHeadersMiddleware
 from app.services.brute_force_service import brute_force_service
 
 
-def build_request(path: str = "/api/auth/login") -> Request:
+def build_request(path: str = "/api/auth/login", method: str = "POST") -> Request:
     scope = {
         "type": "http",
         "http_version": "1.1",
-        "method": "POST",
+        "method": method,
         "path": path,
         "raw_path": path.encode("utf-8"),
         "headers": [],
@@ -48,6 +50,33 @@ class CacheAndSecurityTests(unittest.IsolatedAsyncioTestCase):
             setting.brute_force_lockout_seconds = 60
             brute_force_service._entries.clear()
             brute_force_service._blocked_until.clear()
+
+    async def test_docs_paths_use_docs_content_security_policy(self) -> None:
+        middleware = SecurityHeadersMiddleware(app=lambda scope, receive, send: None)
+        request = build_request("/docs", method="GET")
+
+        async def call_next(_: Request) -> PlainTextResponse:
+            return PlainTextResponse("ok")
+
+        response = await middleware.dispatch(request, call_next)
+
+        csp = response.headers["Content-Security-Policy"]
+        self.assertEqual(csp, setting.security_docs_content_security_policy)
+        self.assertIn("https://cdn.jsdelivr.net", csp)
+
+    async def test_api_paths_use_default_content_security_policy(self) -> None:
+        middleware = SecurityHeadersMiddleware(app=lambda scope, receive, send: None)
+        request = build_request("/api/products", method="GET")
+
+        async def call_next(_: Request) -> PlainTextResponse:
+            return PlainTextResponse("ok")
+
+        response = await middleware.dispatch(request, call_next)
+
+        self.assertEqual(
+            response.headers["Content-Security-Policy"],
+            setting.security_content_security_policy,
+        )
             request = build_request()
 
             brute_force_service.record_failure(email="buyer@example.com", request=request)

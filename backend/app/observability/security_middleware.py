@@ -10,6 +10,7 @@ from app.core.config import setting
 
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+_DOCS_PATHS = {"/docs", "/docs/oauth2-redirect", "/redoc"}
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -18,7 +19,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Frame-Options", setting.security_frame_options)
         response.headers.setdefault("X-Content-Type-Options", setting.security_content_type_options)
         response.headers.setdefault("Referrer-Policy", setting.security_referrer_policy)
-        response.headers.setdefault("Content-Security-Policy", setting.security_content_security_policy)
+        response.headers.setdefault("Content-Security-Policy", _content_security_policy_for_path(request.url.path))
         if setting.security_hsts_enabled or setting.cookie_secure:
             response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
         return response
@@ -55,3 +56,9 @@ def _is_safe_path(path: str) -> bool:
         elif path == safe_path:
             return True
     return False
+
+
+def _content_security_policy_for_path(path: str) -> str:
+    if path in _DOCS_PATHS:
+        return setting.security_docs_content_security_policy
+    return setting.security_content_security_policy
