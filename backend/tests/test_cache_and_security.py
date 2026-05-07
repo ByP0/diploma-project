@@ -50,6 +50,19 @@ class CacheAndSecurityTests(unittest.IsolatedAsyncioTestCase):
             setting.brute_force_lockout_seconds = 60
             brute_force_service._entries.clear()
             brute_force_service._blocked_until.clear()
+            request = build_request()
+
+            brute_force_service.record_failure(email="buyer@example.com", request=request)
+            brute_force_service.record_failure(email="buyer@example.com", request=request)
+
+            with self.assertRaises(ValueError):
+                brute_force_service.ensure_allowed(email="buyer@example.com", request=request)
+        finally:
+            setting.brute_force_max_failures = old_max_failures
+            setting.brute_force_window_seconds = old_window
+            setting.brute_force_lockout_seconds = old_lockout
+            brute_force_service._entries.clear()
+            brute_force_service._blocked_until.clear()
 
     async def test_docs_paths_use_docs_content_security_policy(self) -> None:
         middleware = SecurityHeadersMiddleware(app=lambda scope, receive, send: None)
@@ -77,16 +90,3 @@ class CacheAndSecurityTests(unittest.IsolatedAsyncioTestCase):
             response.headers["Content-Security-Policy"],
             setting.security_content_security_policy,
         )
-            request = build_request()
-
-            brute_force_service.record_failure(email="buyer@example.com", request=request)
-            brute_force_service.record_failure(email="buyer@example.com", request=request)
-
-            with self.assertRaises(ValueError):
-                brute_force_service.ensure_allowed(email="buyer@example.com", request=request)
-        finally:
-            setting.brute_force_max_failures = old_max_failures
-            setting.brute_force_window_seconds = old_window
-            setting.brute_force_lockout_seconds = old_lockout
-            brute_force_service._entries.clear()
-            brute_force_service._blocked_until.clear()
