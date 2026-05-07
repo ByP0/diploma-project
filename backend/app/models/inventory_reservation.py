@@ -23,12 +23,10 @@ class InventoryReservation(BaseWithUUId):
     order_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("orders.id", ondelete="CASCADE"),
-        index=True,
     )
     product_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("products.id", ondelete="CASCADE"),
-        index=True,
     )
     quantity: Mapped[int] = mapped_column(INTEGER)
     status: Mapped[str] = mapped_column(VARCHAR(32), default="active", server_default="active")

@@ -34,7 +34,6 @@ class DeliveryShipment(BaseWithUUId):
     order_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("orders.id", ondelete="CASCADE"),
-        index=True,
     )
     provider_name: Mapped[str] = mapped_column(VARCHAR(64))
     delivery_method: Mapped[DeliveryMethodEnum]

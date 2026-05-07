@@ -30,7 +30,6 @@ class DeliveryAddress(BaseWithUUId):
     user_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
-        index=True,
     )
     label: Mapped[str | None] = mapped_column(VARCHAR(64), nullable=True)
     recipient_name: Mapped[str] = mapped_column(VARCHAR(255))

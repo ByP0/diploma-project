@@ -22,7 +22,6 @@ class OrderStatusHistory(BaseWithUUId):
     order_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("orders.id", ondelete="CASCADE"),
-        index=True,
     )
     from_status: Mapped[str | None] = mapped_column(VARCHAR(32), nullable=True)
     to_status: Mapped[str] = mapped_column(VARCHAR(32))
