@@ -1,0 +1,263 @@
+.integrations-dev-page {
+  min-width: 0;
+}
+
+.integrations-summary,
+.integrations-docs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.integrations-docs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.integrations-doc-card,
+.integrations-test-panel,
+.integrations-result,
+.integrations-curl {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.integrations-doc-card__head,
+.integrations-panel-head,
+.integrations-result__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.integrations-doc-card__head {
+  align-items: flex-start;
+}
+
+.integrations-doc-card__head span {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-info-soft);
+  color: var(--color-info);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.integrations-doc-card h2,
+.integrations-panel-head h2,
+.integrations-result__head h2 {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text);
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.integrations-panel-head h2,
+.integrations-result__head h2 {
+  margin-top: 0;
+}
+
+.integrations-doc-card p,
+.integrations-panel-head p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.integrations-doc-card code,
+.integrations-panel-head code {
+  max-width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-primary-strong);
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.integrations-doc-card dl,
+.integrations-result-meta {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.integrations-doc-card dl div,
+.integrations-result-meta div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.integrations-doc-card dt,
+.integrations-result-meta dt {
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.integrations-doc-card dd,
+.integrations-result-meta dd {
+  margin: 0;
+  color: var(--color-text);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.integrations-test-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.integrations-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.integrations-payload {
+  min-height: 220px;
+  padding-top: 12px;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.integrations-checkbox {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.integrations-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}
+
+.integrations-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.integrations-alert {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  line-height: 1.45;
+}
+
+.integrations-alert.is-error {
+  border-color: color-mix(in srgb, var(--color-danger), transparent 45%);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: 800;
+}
+
+.integrations-result.is-success {
+  border-color: color-mix(in srgb, var(--color-primary), transparent 40%);
+}
+
+.integrations-result.is-pending {
+  border-color: color-mix(in srgb, var(--color-info), transparent 45%);
+  background: var(--color-info-soft);
+}
+
+.integrations-result.is-warning {
+  border-color: color-mix(in srgb, var(--color-warning), transparent 25%);
+  background: var(--color-warning-soft);
+}
+
+.integrations-result__head {
+  align-items: flex-start;
+}
+
+.integrations-result__head span {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.integrations-result__head strong {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.integrations-result.is-warning .integrations-result__head strong {
+  background: #ffffff;
+  color: var(--color-warning);
+}
+
+.integrations-result.is-pending .integrations-result__head strong {
+  background: #ffffff;
+  color: var(--color-info);
+}
+
+.integrations-code-block {
+  max-width: 100%;
+  max-height: 360px;
+  margin: 0;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #10251f;
+  color: #effaf3;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 980px) {
+  .integrations-summary,
+  .integrations-docs,
+  .integrations-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .integrations-doc-card__head,
+  .integrations-panel-head,
+  .integrations-result__head {
+    display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .integrations-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .integrations-doc-card,
+  .integrations-test-panel,
+  .integrations-result,
+  .integrations-curl {
+    padding: var(--space-4);
+  }
+}

@@ -1,0 +1,14 @@
+.public-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: transparent;
+}
+
+@media (max-width: 640px) {
+  .public-layout {
+    align-items: stretch;
+    padding: 20px;
+  }
+}

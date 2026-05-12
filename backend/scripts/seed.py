@@ -21,7 +21,7 @@ async def seed_admin() -> None:
                 User(
                     email=admin_email,
                     name="Admin",
-                    hashed_password=password_service.hash_password("admin12345"),
+                    hashed_password=password_service.hash("admin12345"),
                     role=UserRoleEnum.ADMIN,
                     is_active=True,
                 )

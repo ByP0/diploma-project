@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import logging
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -149,6 +149,48 @@ class SupportService:
             .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def list_tickets_admin(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        status: SupportTicketStatusEnum | None = None,
+        priority: SupportTicketPriorityEnum | None = None,
+        assigned_admin_id: UUID | None = None,
+        human_handoff_requested: bool | None = None,
+        search: str | None = None,
+    ) -> list[SupportTicket]:
+        statement = select(SupportTicket).options(selectinload(SupportTicket.messages))
+
+        if status is not None:
+            statement = statement.where(SupportTicket.status == status)
+        if priority is not None:
+            statement = statement.where(SupportTicket.priority == priority)
+        if assigned_admin_id is not None:
+            statement = statement.where(SupportTicket.assigned_admin_id == assigned_admin_id)
+        if human_handoff_requested is not None:
+            statement = statement.where(SupportTicket.human_handoff_requested.is_(human_handoff_requested))
+        if search:
+            pattern = f"%{search.strip()}%"
+            statement = statement.where(
+                or_(
+                    SupportTicket.subject.ilike(pattern),
+                    SupportTicket.contact_email.ilike(pattern),
+                    SupportTicket.last_message_preview.ilike(pattern),
+                )
+            )
+
+        result = await self.session.execute(
+            statement.order_by(
+                SupportTicket.human_handoff_requested.desc(),
+                SupportTicket.updated_at.desc(),
+                SupportTicket.created_at.desc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().unique().all())
 
     def add_customer_message(
         self,

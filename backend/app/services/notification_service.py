@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.events.domain_events import NotificationFailed, NotificationSent
@@ -34,13 +34,32 @@ class NotificationService:
         self,
         *,
         limit: int = 50,
+        offset: int = 0,
         status: str | None = None,
+        channel: str | None = None,
+        template_name: str | None = None,
+        recipient: str | None = None,
     ) -> list[NotificationMessage]:
         if self.session is None:
             return []
-        statement = select(NotificationMessage).order_by(NotificationMessage.created_at.desc()).limit(limit)
+        statement = select(NotificationMessage)
+
         if status:
             statement = statement.where(NotificationMessage.status == status)
+        if channel:
+            statement = statement.where(NotificationMessage.channel == channel)
+        if template_name:
+            statement = statement.where(NotificationMessage.template_name == template_name.strip())
+        if recipient:
+            pattern = f"%{recipient.strip()}%"
+            statement = statement.where(
+                or_(
+                    NotificationMessage.recipient.ilike(pattern),
+                    NotificationMessage.subject.ilike(pattern),
+                )
+            )
+
+        statement = statement.order_by(NotificationMessage.created_at.desc()).limit(limit).offset(offset)
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 

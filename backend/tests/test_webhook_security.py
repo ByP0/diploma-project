@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.core.config import setting
 from app.core.webhooks import verify_webhook_signature
 from app.models.order import OrderStatusEnum, PaymentMethodEnum, PaymentStatusEnum
 from app.services.payment_service import PaymentService
@@ -46,6 +47,25 @@ class WebhookSecurityTests(unittest.IsolatedAsyncioTestCase):
             verify_webhook_signature(body=b"{}", signature="sha256=bad", secret="webhook-secret")
 
         self.assertEqual(exc.exception.status_code, 401)
+
+    def test_webhook_signature_allows_missing_secret_locally(self) -> None:
+        original_environment = setting.environment
+        setting.environment = "local"
+        try:
+            verify_webhook_signature(body=b"{}", signature=None, secret=None)
+        finally:
+            setting.environment = original_environment
+
+    def test_webhook_signature_rejects_missing_secret_outside_local(self) -> None:
+        original_environment = setting.environment
+        setting.environment = "production"
+        try:
+            with self.assertRaises(HTTPException) as exc:
+                verify_webhook_signature(body=b"{}", signature=None, secret=None)
+        finally:
+            setting.environment = original_environment
+
+        self.assertEqual(exc.exception.status_code, 503)
 
     async def test_duplicate_payment_webhook_is_noop(self) -> None:
         processed_at = datetime.now(timezone.utc)

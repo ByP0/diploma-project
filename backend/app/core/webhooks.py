@@ -5,10 +5,20 @@ import hmac
 
 from fastapi import HTTPException, Request, status
 
+from app.core.config import setting
+
+
+_UNSIGNED_WEBHOOK_ENVIRONMENTS = {"development", "local", "test"}
+
 
 def verify_webhook_signature(*, body: bytes, signature: str | None, secret: str | None) -> None:
     if not secret:
-        return
+        if setting.environment in _UNSIGNED_WEBHOOK_ENVIRONMENTS:
+            return
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Webhook secret is not configured.",
+        )
     if not signature:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Webhook signature is missing.")
 

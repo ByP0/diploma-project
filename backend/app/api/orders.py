@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 
 from app.api.deps import CurrentUser, SessionDep, require_permissions
 from app.core.permissions import PermissionEnum
@@ -14,6 +14,7 @@ from app.schemas.order import (
     OrderRefundRequest,
     OrderStatusUpdate,
 )
+from app.services.admin_audit_service import AdminAuditService
 from app.services.order_service import OrderService
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -203,6 +204,7 @@ async def get_order_admin(order_id: Annotated[UUID, Path()], session: SessionDep
 async def update_order_status(
     order_id: Annotated[UUID, Path()],
     data: OrderStatusUpdate,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
 ):
@@ -217,6 +219,15 @@ async def update_order_status(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not order:
         raise HTTPException(status_code=404, detail="Order was not found.")
+    await AdminAuditService(session).record(
+        request=request,
+        admin_user=current_user,
+        action="update_status",
+        resource_type="order",
+        resource_id=str(order.id),
+        status_code=200,
+        details={"status": order.status.value, "reason": data.reason},
+    )
     return order
 
 
@@ -228,6 +239,7 @@ async def update_order_status(
 async def cancel_order_admin(
     order_id: Annotated[UUID, Path()],
     data: OrderCancelRequest,
+    request: Request,
     session: SessionDep,
     current_user: CurrentUser,
 ):
@@ -241,4 +253,13 @@ async def cancel_order_admin(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not order:
         raise HTTPException(status_code=404, detail="Order was not found.")
+    await AdminAuditService(session).record(
+        request=request,
+        admin_user=current_user,
+        action="cancel",
+        resource_type="order",
+        resource_id=str(order.id),
+        status_code=200,
+        details={"reason": data.reason},
+    )
     return order

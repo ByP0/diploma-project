@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 
-from app.api.deps import CurrentAdmin, CurrentUser, SessionDep
+from app.api.deps import CurrentAdmin, CurrentUser, SessionDep, require_permissions
+from app.core.permissions import PermissionEnum
 from app.api.docs import build_error_responses
+from app.models.support_ticket import SupportTicketPriorityEnum, SupportTicketStatusEnum
 from app.schemas.support import (
     SupportAdminReplyCreate,
     SupportTicketAdminUpdate,
@@ -18,6 +20,52 @@ from app.services.support_service import SupportService
 
 
 router = APIRouter(prefix="/support", tags=["Поддержка"])
+
+
+@router.get(
+    "/tickets",
+    response_model=SupportTicketListResponse,
+    dependencies=[Depends(require_permissions(PermissionEnum.HANDLE_SUPPORT))],
+    summary="Получить обращения поддержки для администратора",
+    responses=build_error_responses(401, 403, 422, 500),
+)
+async def list_support_tickets_admin(
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    status: SupportTicketStatusEnum | None = Query(default=None),
+    priority: SupportTicketPriorityEnum | None = Query(default=None),
+    assigned_admin_id: UUID | None = Query(default=None),
+    human_handoff_requested: bool | None = Query(default=None),
+    search: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+):
+    tickets = await SupportService(session).list_tickets_admin(
+        limit=limit,
+        offset=offset,
+        status=status,
+        priority=priority,
+        assigned_admin_id=assigned_admin_id,
+        human_handoff_requested=human_handoff_requested,
+        search=search,
+    )
+    return SupportTicketListResponse(items=tickets)
+
+
+@router.get(
+    "/tickets/admin/{ticket_id}",
+    response_model=SupportTicketRead,
+    dependencies=[Depends(require_permissions(PermissionEnum.HANDLE_SUPPORT))],
+    summary="Получить детали обращения поддержки для администратора",
+    responses=build_error_responses(401, 403, 404, 422, 500),
+)
+async def get_support_ticket_admin(
+    ticket_id: Annotated[UUID, Path(description="Идентификатор обращения поддержки")],
+    session: SessionDep,
+):
+    ticket = await SupportService(session).get_ticket_by_id(ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Обращение поддержки не найдено.")
+    return ticket
 
 
 @router.get(

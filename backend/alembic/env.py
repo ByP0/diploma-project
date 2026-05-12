@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -31,8 +32,9 @@ def run_migrations(connection: Connection):
 
 
 def run_migrations_online():
+    database_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or config.get_main_option("sqlalchemy.url")
     connectable = create_async_engine(
-        config.get_main_option("sqlalchemy.url"),
+        database_url,
         poolclass=pool.NullPool,
     )
 

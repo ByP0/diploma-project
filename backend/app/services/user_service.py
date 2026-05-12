@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import password_service
 from app.events.domain_events import UserBlocked, UserEmailVerified
 from app.events.publishers.event_publisher import EventPublisher
 from app.models.refresh_token import RefreshToken
-from app.models.user import User
+from app.models.user import User, UserRoleEnum
 from app.models.user_login_audit_log import UserLoginAuditLog
 
 
@@ -37,9 +37,40 @@ class UserService:
     async def get_profile(self, user_id: UUID) -> User | None:
         return await self.session.get(User, user_id)
 
-    async def list_users(self, *, limit: int = 50, offset: int = 0) -> list[User]:
+    async def list_users(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        role: UserRoleEnum | None = None,
+        is_active: bool | None = None,
+        is_blocked: bool | None = None,
+        email_verified: bool | None = None,
+        search: str | None = None,
+    ) -> list[User]:
+        statement = select(User)
+
+        if role is not None:
+            statement = statement.where(User.role == role)
+        if is_active is not None:
+            statement = statement.where(User.is_active.is_(is_active))
+        if is_blocked is not None:
+            statement = statement.where(User.is_blocked.is_(is_blocked))
+        if email_verified is True:
+            statement = statement.where(User.email_verified_at.is_not(None))
+        elif email_verified is False:
+            statement = statement.where(User.email_verified_at.is_(None))
+        if search:
+            pattern = f"%{search.strip()}%"
+            statement = statement.where(
+                or_(
+                    User.email.ilike(pattern),
+                    User.name.ilike(pattern),
+                )
+            )
+
         result = await self.session.execute(
-            select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
+            statement.order_by(User.created_at.desc()).limit(limit).offset(offset)
         )
         return list(result.scalars().all())
 
@@ -94,12 +125,30 @@ class UserService:
         offset: int = 0,
         user_id: UUID | None = None,
         email: str | None = None,
+        success: bool | None = None,
+        event_type: str | None = None,
+        ip_address: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
     ) -> list[UserLoginAuditLog]:
-        statement = select(UserLoginAuditLog).order_by(UserLoginAuditLog.created_at.desc()).limit(limit).offset(offset)
+        statement = select(UserLoginAuditLog)
+
         if user_id:
             statement = statement.where(UserLoginAuditLog.user_id == user_id)
         if email:
-            statement = statement.where(UserLoginAuditLog.email == email.strip().lower())
+            statement = statement.where(UserLoginAuditLog.email.ilike(f"%{email.strip().lower()}%"))
+        if success is not None:
+            statement = statement.where(UserLoginAuditLog.success.is_(success))
+        if event_type:
+            statement = statement.where(UserLoginAuditLog.event_type == event_type.strip())
+        if ip_address:
+            statement = statement.where(UserLoginAuditLog.ip_address == ip_address.strip())
+        if created_from:
+            statement = statement.where(UserLoginAuditLog.created_at >= created_from)
+        if created_to:
+            statement = statement.where(UserLoginAuditLog.created_at <= created_to)
+
+        statement = statement.order_by(UserLoginAuditLog.created_at.desc()).limit(limit).offset(offset)
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 

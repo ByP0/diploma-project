@@ -16,6 +16,7 @@ from app.api.checkout import router as checkout_router
 from app.api.delivery import router as delivery_router
 from app.api.images import router as images_router
 from app.api.notifications import router as notifications_router
+from app.api.openapi import API_DESCRIPTION, API_TITLE, install_custom_openapi
 from app.api.orders import router as orders_router
 from app.api.payments import router as payments_router
 from app.api.products import router as products_router
@@ -98,8 +99,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=setting.app_name,
-    description=setting.app_description,
+    title=API_TITLE,
+    description=API_DESCRIPTION,
     version=setting.app_version,
     lifespan=lifespan,
     docs_url="/docs",
@@ -252,3 +253,6 @@ async def metrics(
         metrics_registry.render_prometheus(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )
+
+
+install_custom_openapi(app)

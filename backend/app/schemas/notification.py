@@ -12,6 +12,9 @@ class NotificationMessageRead(BaseModel):
     template_name: str
     recipient: str
     subject: str
+    body_text: str
+    body_html: str | None
+    context_payload: dict[str, object] | None
     status: str
     attempts: int
     max_attempts: int

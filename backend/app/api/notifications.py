@@ -17,9 +17,20 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 async def list_notification_messages(
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     status: str | None = Query(default=None),
+    channel: str | None = Query(default=None, min_length=1, max_length=32),
+    template_name: str | None = Query(default=None, min_length=1, max_length=64),
+    recipient: str | None = Query(default=None, min_length=1, max_length=255),
 ):
-    return await NotificationService(session).list_messages(limit=limit, status=status)
+    return await NotificationService(session).list_messages(
+        limit=limit,
+        offset=offset,
+        status=status,
+        channel=channel,
+        template_name=template_name,
+        recipient=recipient,
+    )
 
 
 @router.post(

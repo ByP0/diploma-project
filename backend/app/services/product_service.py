@@ -157,6 +157,24 @@ class ProductService:
         await self.session.commit()
         return True
 
+    async def detach_photo_id(self, photo_id: str) -> int:
+        result = await self.session.execute(
+            select(Product).where(Product.photo_ids.any(photo_id))
+        )
+        products = result.scalars().all()
+
+        for product in products:
+            product.photo_ids = [
+                current_photo_id
+                for current_photo_id in product.photo_ids
+                if current_photo_id != photo_id
+            ]
+
+        if products:
+            await self.session.commit()
+
+        return len(products)
+
     async def __ensure_sku_unique(
         self,
         sku: str,

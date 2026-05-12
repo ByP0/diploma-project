@@ -5,10 +5,12 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import CurrentAdmin, SessionDep
 from app.api.docs import build_error_responses, message_response
+from app.cache import cache_service
 from app.schemas.common import MessageResponse
 from app.schemas.image import ImageUploadResponse
 from app.services.admin_audit_service import AdminAuditService
 from app.services.image_service import ImageNotFoundError, ImageService, ImageValidationError
+from app.services.product_service import ProductService
 
 
 router = APIRouter(prefix="/images", tags=["Медиа"])
@@ -104,6 +106,8 @@ async def delete_image(
     except ImageNotFoundError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
+    detached_products = await ProductService(session).detach_photo_id(image_id)
+
     await AdminAuditService(session).record(
         request=request,
         admin_user=current_admin,
@@ -111,5 +115,7 @@ async def delete_image(
         resource_type="image",
         resource_id=image_id,
         status_code=200,
+        details={"detached_products": detached_products},
     )
+    await cache_service.delete_by_prefix("catalog:products:")
     return MessageResponse(detail="Изображение успешно удалено.")
